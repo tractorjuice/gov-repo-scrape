@@ -3,7 +3,34 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Gov Repo Scrape</title>
+    <title>US Gov Open Source Leaderboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      body { background: #05080f; }
+      /* Focus-visible outlines for accessibility */
+      :focus-visible { outline: 2px solid #7eb6ff; outline-offset: 2px; }
+      input:focus-visible, select:focus-visible, button:focus-visible {
+        outline: 2px solid #7eb6ff; outline-offset: 1px;
+      }
+      /* Table row hover via CSS instead of JS */
+      .repo-row { transition: background 0.15s ease; }
+      .repo-row:hover { background: rgba(255,255,255,0.035) !important; }
+      /* Entrance animations */
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(12px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .fade-up { animation: fadeUp 0.4s ease both; }
+      .fade-up-1 { animation-delay: 0.05s; }
+      .fade-up-2 { animation-delay: 0.1s; }
+      .fade-up-3 { animation-delay: 0.15s; }
+      .fade-up-4 { animation-delay: 0.2s; }
+      /* Sticky table header */
+      thead th { position: sticky; top: 0; z-index: 1; background: #080d18; }
+    </style>
   </head>
   <body>
     <div id="root"></div>

@@ -38,7 +38,7 @@
  * - Deploy as a static site to GitHub Pages or Cloudflare Pages
  */
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 
 // ---------------------------------------------------------------------------
 // DATA: All 331 US government GitHub organisations
@@ -450,11 +450,6 @@ const LANG_COLORS = {
 // HELPERS
 // ---------------------------------------------------------------------------
 
-/** Pause execution for `ms` milliseconds. Used to pace API requests. */
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 /** Format a number: values >= 1000 are shown as e.g. "1.2k". */
 function fmtNum(n) {
   if (!n) return "0";
@@ -499,8 +494,8 @@ export default function App() {
   const [rateLimitedAt, setRateLimitedAt] = useState(null); // org index at which rate limit hit
 
   // -- Auth -----------------------------------------------------------------
-  const [token, setToken] = useState("");         // GitHub Personal Access Token (optional)
-  const [showToken, setShowToken] = useState(false); // toggles the token input field
+  const [token, setToken] = useState(import.meta.env.VITE_GITHUB_TOKEN || "");
+  const [showToken, setShowToken] = useState(false);
 
   // -- Filters & sort -------------------------------------------------------
   const [sortBy, setSortBy] = useState("stars");      // "stars" | "forks" | "issues" | "updated"
@@ -526,116 +521,101 @@ export default function App() {
    *   (which happens when running inside the Claude.ai sandbox)
    */
   async function startLoading() {
-    // Reset all state for a fresh run
     setPhase("loading");
     setRepos([]);
     setOrgIndex(0);
     setFatalMsg("");
     setRateLimitedAt(null);
 
-    // Build request headers. Authorization header is only added when a token
-    // is present — the GitHub API accepts unauthenticated requests too.
     const headers = { Accept: "application/vnd.github+json" };
     if (token.trim()) {
       headers["Authorization"] = "Bearer " + token.trim();
     }
 
-    // Accumulate repos here, then copy to state after each org
+    const BATCH_SIZE = token.trim() ? 10 : 3;
     const accumulated = [];
+    let rateLimited = false;
 
-    for (let i = 0; i < ORGS.length; i++) {
-      const org = ORGS[i];
+    for (let i = 0; i < ORGS.length; i += BATCH_SIZE) {
+      if (rateLimited) break;
 
-      // Update progress indicators
-      setOrgIndex(i + 1);
-      setOrgName(org.name);
+      const batch = ORGS.slice(i, i + BATCH_SIZE);
+      setOrgIndex(i + batch.length);
+      setOrgName(batch.map((o) => o.name).join(", "));
 
-      // Attempt the API call
-      let res;
-      try {
-        res = await fetch(
-          "https://api.github.com/orgs/" + org.name + "/repos?type=public&per_page=100&sort=stars",
-          { headers: headers }
-        );
-      } catch (err) {
-        // Network-level failure (fetch() itself threw).
-        // If this happens on the very first org, it means the API is
-        // completely unreachable — show the fatal screen.
-        if (i === 0) {
-          setFatalMsg(
-            "Could not reach api.github.com — " + err.message +
-            "\n\nThe Claude.ai artifact sandbox blocks requests to external APIs. " +
-            "To use this app, run it locally:\n\n" +
-            "  npm create vite@latest us-gov-oss -- --template react\n" +
-            "  cd us-gov-oss && npm install\n" +
-            "  # Replace src/App.jsx with this file\n" +
-            "  npm run dev"
-          );
-          setPhase("fatal");
-          return;
+      const results = await Promise.allSettled(
+        batch.map((org) =>
+          fetch(
+            "https://api.github.com/orgs/" + org.name + "/repos?type=public&per_page=100&sort=stars",
+            { headers }
+          ).then(async (res) => ({ res, org }))
+        )
+      );
+
+      for (const result of results) {
+        if (result.status === "rejected") {
+          // Network failure on the very first batch → fatal
+          if (i === 0 && accumulated.length === 0) {
+            setFatalMsg(
+              "Could not reach api.github.com — " + result.reason.message +
+              "\n\nTo use this app, run it locally with: npm run dev"
+            );
+            setPhase("fatal");
+            return;
+          }
+          continue;
         }
-        // For later orgs, just skip and continue
-        continue;
-      }
 
-      // HTTP 403 / 429 = rate limited. Stop the loop and show a warning.
-      if (res.status === 403 || res.status === 429) {
-        setRateLimitedAt(i);
-        break;
-      }
+        const { res, org } = result.value;
 
-      // HTTP 404 = org doesn't exist or has no public GitHub presence. Skip.
-      if (res.status === 404) {
-        continue;
-      }
+        if (res.status === 403 || res.status === 429) {
+          setRateLimitedAt(i);
+          rateLimited = true;
+          continue;
+        }
 
-      // Any other non-OK response: skip this org silently.
-      if (!res.ok) {
-        continue;
-      }
+        if (!res.ok) continue;
 
-      // Parse the JSON response
-      let data;
-      try {
-        data = await res.json();
-      } catch {
-        continue;
-      }
+        let data;
+        try { data = await res.json(); } catch { continue; }
 
-      // Add qualifying repos to the accumulator
-      if (Array.isArray(data)) {
-        for (const r of data) {
-          // Exclude forks and archived repos — same policy as the UK leaderboard
-          if (r.fork === false && r.archived === false) {
-            accumulated.push({
-              id: r.id,                          // GitHub repo ID (used as React key)
-              name: r.name,                      // repo slug
-              url: r.html_url,                   // link to the repo on GitHub
-              desc: r.description || "",         // short description
-              stars: r.stargazers_count || 0,
-              forks: r.forks_count || 0,
-              issues: r.open_issues_count || 0,  // open issues + PRs
-              lang: r.language || null,           // primary language (may be null)
-              updated: r.pushed_at || null,       // date of last push
-              license: r.license ? r.license.spdx_id : null,
-              org: org.name,                     // GitHub org slug
-              category: org.category,            // e.g. "U.S. Federal"
-              emoji: org.emoji,                  // category emoji
-            });
+        if (Array.isArray(data)) {
+          for (const r of data) {
+            if (r.fork === false && r.archived === false) {
+              accumulated.push({
+                id: r.id,
+                name: r.name,
+                url: r.html_url,
+                desc: r.description || "",
+                stars: r.stargazers_count || 0,
+                forks: r.forks_count || 0,
+                issues: r.open_issues_count || 0,
+                lang: r.language || null,
+                updated: r.pushed_at || null,
+                license: r.license ? r.license.spdx_id : null,
+                org: org.name,
+                category: org.category,
+                emoji: org.emoji,
+              });
+            }
           }
         }
-
-        // Update state with a new array reference so React re-renders.
-        // We do this inside the loop (not after) so the table fills live.
-        setRepos(accumulated.slice());
       }
 
-      // Polite delay between requests
-      await sleep(100);
+      setRepos(accumulated.slice());
     }
 
     setPhase("done");
   }
+
+  // Auto-load on mount
+  const hasStarted = useRef(false);
+  useEffect(() => {
+    if (!hasStarted.current) {
+      hasStarted.current = true;
+      startLoading();
+    }
+  }, []);
 
   // ---------------------------------------------------------------------------
   // DERIVED DATA
@@ -678,87 +658,44 @@ export default function App() {
   // SHARED STYLES
   // ---------------------------------------------------------------------------
 
+  const mono = "'JetBrains Mono', monospace";
+  const display = "'DM Serif Display', Georgia, serif";
+
   const S = {
     page: {
       minHeight: "100vh",
       background: "#05080f",
       color: "#e8eaf0",
-      fontFamily: "Georgia, serif",
+      fontFamily: mono,
     },
-    // Reused style for all <select> dropdowns in the controls bar
     select: {
       background: "#0d1220",
-      border: "1px solid rgba(255,255,255,0.1)",
+      border: "1px solid rgba(255,255,255,0.12)",
       borderRadius: 7,
-      padding: "7px 11px",
+      padding: "8px 12px",
       color: "#e8eaf0",
       fontSize: 12,
-      fontFamily: "monospace",
+      fontFamily: mono,
       cursor: "pointer",
-      outline: "none",
+      transition: "border-color 0.15s",
     },
   };
 
   // ---------------------------------------------------------------------------
-  // RENDER: WELCOME SCREEN
+  // RENDER: WELCOME SCREEN (brief splash while autoload begins)
   // ---------------------------------------------------------------------------
 
   if (phase === "welcome") {
     return (
       <div style={{ ...S.page, display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
-        <div style={{ maxWidth: 540, width: "100%", textAlign: "center" }}>
-
-          <div style={{ fontSize: 10, letterSpacing: 6, textTransform: "uppercase", color: "#b22234", fontFamily: "monospace", marginBottom: 12 }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 10, letterSpacing: 6, textTransform: "uppercase", color: "#b22234", fontFamily: mono, marginBottom: 12 }}>
             ★ &nbsp; United States Government &nbsp; ★
           </div>
-
-          <h1 style={{ fontSize: "clamp(1.8rem, 5vw, 3rem)", fontWeight: 700, lineHeight: 1.15, margin: "0 0 14px", background: "linear-gradient(135deg, #fff 0%, #b8c4e0 55%, #b22234 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+          <h1 style={{ fontSize: "clamp(1.8rem, 5vw, 3rem)", fontWeight: 400, fontFamily: display, lineHeight: 1.15, margin: "0 0 14px", background: "linear-gradient(135deg, #fff 0%, #b8c4e0 55%, #b22234 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
             Open Source<br /><em>Repository Leaderboard</em>
           </h1>
-
-          <p style={{ color: "#6b7280", fontFamily: "monospace", fontSize: 12, marginBottom: 24, lineHeight: 1.9 }}>
-            Live data from <strong style={{ color: "#c5cad4" }}>{ORGS.length} US government organizations</strong> on GitHub
-            <br />
-            Federal · Military · States · Cities · Counties · Tribal Nations
-          </p>
-
-          {/* Rate limit explainer */}
-          <div style={{ background: "rgba(178,34,52,0.08)", border: "1px solid rgba(178,34,52,0.22)", borderRadius: 10, padding: "14px 18px", marginBottom: 22, textAlign: "left" }}>
-            <div style={{ color: "#ff9999", fontFamily: "monospace", fontSize: 11, fontWeight: 700, marginBottom: 6 }}>⚡ Rate limits</div>
-            <div style={{ color: "#6b7280", fontFamily: "monospace", fontSize: 11, lineHeight: 1.9 }}>
-              No token: <strong style={{ color: "#c5cad4" }}>60 req/hr</strong> — covers ~60 orgs out of {ORGS.length}<br />
-              With a GitHub token: <strong style={{ color: "#c5cad4" }}>5,000 req/hr</strong> — covers all {ORGS.length}<br />
-              No scopes needed. Token is only used for GitHub API calls in your browser.
-            </div>
-          </div>
-
-          {/* Token input toggle */}
-          <button
-            onClick={() => setShowToken(!showToken)}
-            style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 6, padding: "5px 14px", color: "#6b7280", fontFamily: "monospace", fontSize: 11, cursor: "pointer", marginBottom: showToken ? 10 : 22 }}
-          >
-            {showToken ? "▲ Hide token" : "▼ Add GitHub token (optional)"}
-          </button>
-
-          {showToken && (
-            <div style={{ marginBottom: 22 }}>
-              <input
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-                type="password"
-                style={{ width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 8, padding: "9px 12px", color: "#e8eaf0", fontSize: 13, fontFamily: "monospace", outline: "none", boxSizing: "border-box" }}
-              />
-            </div>
-          )}
-
-          {/* Main CTA */}
-          <button
-            onClick={startLoading}
-            style={{ background: "linear-gradient(135deg, #b22234, #3c3b6e)", border: "none", borderRadius: 10, padding: "13px 38px", color: "#fff", fontFamily: "monospace", fontSize: 14, fontWeight: 700, cursor: "pointer", letterSpacing: 1, boxShadow: "0 4px 20px rgba(178,34,52,0.35)" }}
-          >
-            🇺🇸 &nbsp; Load All Agencies
-          </button>
+          <div style={{ color: "#6b7280", fontFamily: mono, fontSize: 12 }}>⟳ Starting…</div>
         </div>
       </div>
     );
@@ -774,13 +711,13 @@ export default function App() {
       <div style={{ ...S.page, display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
         <div style={{ maxWidth: 540, textAlign: "center" }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>🚫</div>
-          <h2 style={{ fontFamily: "monospace", color: "#ff8a8a", marginBottom: 12 }}>GitHub API Unreachable</h2>
-          <pre style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "14px 16px", fontFamily: "monospace", fontSize: 11, color: "#6b7280", textAlign: "left", whiteSpace: "pre-wrap", wordBreak: "break-word", marginBottom: 20 }}>
+          <h2 style={{ fontFamily: mono, color: "#ff8a8a", marginBottom: 12 }}>GitHub API Unreachable</h2>
+          <pre style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "14px 16px", fontFamily: mono, fontSize: 11, color: "#6b7280", textAlign: "left", whiteSpace: "pre-wrap", wordBreak: "break-word", marginBottom: 20 }}>
             {fatalMsg}
           </pre>
           <button
-            onClick={() => setPhase("welcome")}
-            style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 7, padding: "8px 18px", color: "#a0aec0", fontFamily: "monospace", fontSize: 12, cursor: "pointer" }}
+            onClick={startLoading}
+            style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 7, padding: "8px 18px", color: "#a0aec0", fontFamily: mono, fontSize: 12, cursor: "pointer" }}
           >
             ← Back
           </button>
@@ -800,10 +737,10 @@ export default function App() {
 
         {/* Page title */}
         <div style={{ textAlign: "center", padding: "32px 0 18px" }}>
-          <div style={{ fontSize: 10, letterSpacing: 5, textTransform: "uppercase", color: "#b22234", fontFamily: "monospace", marginBottom: 7 }}>
+          <div style={{ fontSize: 10, letterSpacing: 5, textTransform: "uppercase", color: "#b22234", fontFamily: mono, marginBottom: 7 }}>
             ★ &nbsp; United States Government &nbsp; ★
           </div>
-          <h1 style={{ fontSize: "clamp(1.4rem, 3vw, 2.4rem)", fontWeight: 700, margin: 0, background: "linear-gradient(135deg, #fff 0%, #b8c4e0 55%, #b22234 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+          <h1 style={{ fontSize: "clamp(1.4rem, 3vw, 2.4rem)", fontWeight: 400, fontFamily: display, margin: 0, background: "linear-gradient(135deg, #fff 0%, #b8c4e0 55%, #b22234 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
             Open Source Repository Leaderboard
           </h1>
         </div>
@@ -815,10 +752,10 @@ export default function App() {
             ["Repos",      repos.length.toLocaleString()],
             ["★ Stars",    fmtNum(totalStars)],
             ["Languages",  langs.length - 1],
-          ].map(([label, value]) => (
-            <div key={label} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "6px 16px", textAlign: "center" }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#fff", fontFamily: "monospace" }}>{value}</div>
-              <div style={{ fontSize: 10, color: "#6b7280", letterSpacing: 1, textTransform: "uppercase", fontFamily: "monospace" }}>{label}</div>
+          ].map(([label, value], i) => (
+            <div key={label} className={`fade-up fade-up-${i + 1}`} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "8px 18px", textAlign: "center" }}>
+              <div style={{ fontSize: 17, fontWeight: 700, color: "#fff", fontFamily: mono }}>{value}</div>
+              <div style={{ fontSize: 10, color: "#6b7280", letterSpacing: 1, textTransform: "uppercase", fontFamily: mono }}>{label}</div>
             </div>
           ))}
         </div>
@@ -829,7 +766,7 @@ export default function App() {
             <div style={{ width: "100%", height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 2 }}>
               <div style={{ width: progress + "%", height: "100%", background: "linear-gradient(90deg, #b22234, #3c3b6e)", borderRadius: 2, transition: "width 0.3s" }} />
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontFamily: "monospace", fontSize: 10, color: "#374151" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontFamily: mono, fontSize: 10, color: "#6b7280" }}>
               <span>⟳ {orgName}</span>
               <span>{progress}% · {orgIndex}/{ORGS.length} orgs · {repos.length} repos found</span>
             </div>
@@ -838,9 +775,9 @@ export default function App() {
 
         {/* Rate limit warning banner */}
         {rateLimitedAt !== null && (
-          <div style={{ background: "rgba(178,34,52,0.09)", border: "1px solid rgba(178,34,52,0.3)", borderRadius: 7, padding: "9px 14px", marginBottom: 14, color: "#ff8a8a", fontFamily: "monospace", fontSize: 11, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ background: "rgba(178,34,52,0.09)", border: "1px solid rgba(178,34,52,0.3)", borderRadius: 7, padding: "9px 14px", marginBottom: 14, color: "#ff8a8a", fontFamily: mono, fontSize: 11, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span>⚠️ Rate limited after {rateLimitedAt}/{ORGS.length} orgs — partial results shown. Add a GitHub token and reload for full data.</span>
-            <button onClick={() => setPhase("welcome")} style={{ background: "rgba(178,34,52,0.2)", border: "1px solid #b22234", borderRadius: 4, padding: "3px 8px", color: "#ff8a8a", cursor: "pointer", fontFamily: "monospace", fontSize: 10 }}>← Reset</button>
+            <button onClick={startLoading} style={{ background: "rgba(178,34,52,0.2)", border: "1px solid #b22234", borderRadius: 4, padding: "3px 8px", color: "#ff8a8a", cursor: "pointer", fontFamily: mono, fontSize: 10 }}>← Reset</button>
           </div>
         )}
 
@@ -852,7 +789,7 @@ export default function App() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="🔍 Search repos…"
-            style={{ flex: "1 1 150px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 7, padding: "7px 11px", color: "#e8eaf0", fontSize: 12, fontFamily: "monospace", outline: "none" }}
+            style={{ flex: "1 1 150px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 7, padding: "8px 12px", color: "#e8eaf0", fontSize: 12, fontFamily: mono, transition: "border-color 0.15s" }}
           />
 
           {/* Sort order */}
@@ -880,16 +817,23 @@ export default function App() {
           </select>
 
           {/* Result count */}
-          <span style={{ fontSize: 10, color: "#374151", fontFamily: "monospace", marginLeft: "auto" }}>
+          <span style={{ fontSize: 10, color: "#6b7280", fontFamily: mono, marginLeft: "auto" }}>
             {filtered.length.toLocaleString()} repos
           </span>
 
-          {/* Reset button — goes back to the welcome screen */}
+          {/* Token input + reload */}
+          <input
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="GitHub token (optional)"
+            type="password"
+            style={{ width: 160, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 7, padding: "7px 10px", color: "#e8eaf0", fontSize: 10, fontFamily: mono, transition: "border-color 0.15s" }}
+          />
           <button
-            onClick={() => setPhase("welcome")}
-            style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 6, padding: "5px 10px", color: "#374151", fontFamily: "monospace", fontSize: 10, cursor: "pointer" }}
+            onClick={startLoading}
+            style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 6, padding: "5px 10px", color: "#6b7280", fontFamily: mono, fontSize: 10, cursor: "pointer", transition: "border-color 0.15s, color 0.15s" }}
           >
-            ← Reset
+            ↻ Reload
           </button>
         </div>
 
@@ -897,15 +841,16 @@ export default function App() {
         <div style={{ border: "1px solid rgba(255,255,255,0.07)", borderRadius: 9, overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
-              <tr style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(178,34,52,0.28)" }}>
-                <th style={{ padding: "9px 11px", textAlign: "right",  color: "#4a5568", fontFamily: "monospace", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 600, width: 40 }}>#</th>
-                <th style={{ padding: "9px 11px", textAlign: "left",   color: "#4a5568", fontFamily: "monospace", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 600 }}>Repository</th>
-                <th style={{ padding: "9px 11px", textAlign: "left",   color: "#4a5568", fontFamily: "monospace", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 600, width: 170 }}>Org / Category</th>
-                <th style={{ padding: "9px 11px", textAlign: "left",   color: "#4a5568", fontFamily: "monospace", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 600, width: 108 }}>Language</th>
-                <th style={{ padding: "9px 11px", textAlign: "right",  color: "#4a5568", fontFamily: "monospace", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 600, width: 68 }}>Stars</th>
-                <th style={{ padding: "9px 11px", textAlign: "right",  color: "#4a5568", fontFamily: "monospace", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 600, width: 60 }}>Forks</th>
-                <th style={{ padding: "9px 11px", textAlign: "right",  color: "#4a5568", fontFamily: "monospace", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 600, width: 65 }}>Issues</th>
-                <th style={{ padding: "9px 11px", textAlign: "left",   color: "#4a5568", fontFamily: "monospace", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 600, width: 108 }}>Updated</th>
+              <tr style={{ borderBottom: "1px solid rgba(178,34,52,0.28)" }}>
+                {[
+                  ["#", "right", 40], ["Repository", "left", undefined], ["Org / Category", "left", 170],
+                  ["Language", "left", 108], ["Stars", "right", 68], ["Forks", "right", 60],
+                  ["Issues", "right", 65], ["Updated", "left", 108],
+                ].map(([label, align, w]) => (
+                  <th key={label} style={{ padding: "10px 11px", textAlign: align, color: "#8892a4", fontFamily: mono, fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 600, width: w }}>
+                    {label}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -913,62 +858,56 @@ export default function App() {
               {filtered.slice(0, 300).map((repo, idx) => (
                 <tr
                   key={repo.id}
-                  style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.025)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                  className="repo-row"
+                  style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
                 >
-                  {/* Rank: medals for top 3, number for the rest */}
-                  <td style={{ padding: "10px 11px", textAlign: "right", fontFamily: "monospace", fontSize: 10, fontWeight: 700, color: idx < 3 ? "#b22234" : "#1f2937" }}>
+                  <td style={{ padding: "10px 11px", textAlign: "right", fontFamily: mono, fontSize: 11, fontWeight: 700, color: idx < 3 ? "#b22234" : "#4a5568" }}>
                     {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : idx + 1}
                   </td>
 
-                  {/* Repo name, description, license badge */}
                   <td style={{ padding: "10px 7px 10px 0", maxWidth: 340 }}>
-                    <a href={repo.url} target="_blank" rel="noreferrer" style={{ color: "#7eb6ff", textDecoration: "none", fontWeight: 600, fontFamily: "monospace", fontSize: 12 }}>
+                    <a href={repo.url} target="_blank" rel="noreferrer" style={{ color: "#7eb6ff", textDecoration: "none", fontWeight: 600, fontFamily: mono, fontSize: 13 }}>
                       {repo.name}
                     </a>
                     {repo.desc && (
-                      <div style={{ color: "#374151", fontSize: 11, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>
+                      <div style={{ color: "#6b7280", fontSize: 12, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>
                         {repo.desc}
                       </div>
                     )}
                     {repo.license && (
-                      <span style={{ display: "inline-block", marginTop: 2, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 3, padding: "1px 5px", fontSize: 9, color: "#374151", fontFamily: "monospace" }}>
+                      <span style={{ display: "inline-block", marginTop: 3, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 3, padding: "1px 6px", fontSize: 10, color: "#4a5568", fontFamily: mono }}>
                         {repo.license}
                       </span>
                     )}
                   </td>
 
-                  {/* Org name and category */}
                   <td style={{ padding: "10px 11px" }}>
-                    <div style={{ fontFamily: "monospace", fontSize: 11, color: "#6b7280" }}>{repo.emoji} {repo.org}</div>
-                    <div style={{ fontFamily: "monospace", fontSize: 9, color: "#374151", marginTop: 2 }}>{repo.category}</div>
+                    <div style={{ fontFamily: mono, fontSize: 11, color: "#9ca3af" }}>{repo.emoji} {repo.org}</div>
+                    <div style={{ fontFamily: mono, fontSize: 10, color: "#4a5568", marginTop: 2 }}>{repo.category}</div>
                   </td>
 
-                  {/* Language dot + name */}
                   <td style={{ padding: "10px 11px" }}>
                     {repo.lang && (
                       <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
                         <span style={{ width: 9, height: 9, borderRadius: "50%", background: LANG_COLORS[repo.lang] || "#555", flexShrink: 0 }} />
-                        <span style={{ color: "#9ca3af", fontSize: 10, fontFamily: "monospace" }}>{repo.lang}</span>
+                        <span style={{ color: "#9ca3af", fontSize: 11, fontFamily: mono }}>{repo.lang}</span>
                       </span>
                     )}
                   </td>
 
-                  {/* Stars — highlighted gold when > 500 */}
-                  <td style={{ padding: "10px 11px", textAlign: "right", fontFamily: "monospace", fontSize: 11, color: repo.stars > 500 ? "#fbbf24" : repo.stars > 50 ? "#6b7280" : "#1f2937", fontWeight: repo.stars > 500 ? 700 : 400 }}>
+                  <td style={{ padding: "10px 11px", textAlign: "right", fontFamily: mono, fontSize: 12, color: repo.stars > 500 ? "#fbbf24" : repo.stars > 50 ? "#9ca3af" : "#4a5568", fontWeight: repo.stars > 500 ? 700 : 400 }}>
                     {fmtNum(repo.stars)}
                   </td>
 
-                  <td style={{ padding: "10px 11px", textAlign: "right", fontFamily: "monospace", fontSize: 11, color: "#374151" }}>
+                  <td style={{ padding: "10px 11px", textAlign: "right", fontFamily: mono, fontSize: 12, color: "#6b7280" }}>
                     {fmtNum(repo.forks)}
                   </td>
 
-                  <td style={{ padding: "10px 11px", textAlign: "right", fontFamily: "monospace", fontSize: 11, color: "#374151" }}>
+                  <td style={{ padding: "10px 11px", textAlign: "right", fontFamily: mono, fontSize: 12, color: "#6b7280" }}>
                     {fmtNum(repo.issues)}
                   </td>
 
-                  <td style={{ padding: "10px 11px", fontFamily: "monospace", fontSize: 10, color: "#1f2937", whiteSpace: "nowrap" }}>
+                  <td style={{ padding: "10px 11px", fontFamily: mono, fontSize: 11, color: "#4a5568", whiteSpace: "nowrap" }}>
                     {fmtDate(repo.updated)}
                   </td>
                 </tr>
@@ -978,35 +917,33 @@ export default function App() {
 
           {/* Empty state while loading */}
           {repos.length === 0 && isLoading && (
-            <div style={{ textAlign: "center", padding: "48px 0", color: "#374151", fontFamily: "monospace", fontSize: 12 }}>
+            <div style={{ textAlign: "center", padding: "48px 0", color: "#6b7280", fontFamily: mono, fontSize: 12 }}>
               ⟳ Fetching {orgName}…
             </div>
           )}
 
-          {/* Empty state after loading completes with no results */}
           {repos.length === 0 && !isLoading && (
-            <div style={{ textAlign: "center", padding: "48px 0", color: "#374151", fontFamily: "monospace", fontSize: 12 }}>
+            <div style={{ textAlign: "center", padding: "48px 0", color: "#6b7280", fontFamily: mono, fontSize: 12 }}>
               No repos found — the API may be unreachable or all orgs returned empty results.
             </div>
           )}
 
-          {/* Truncation notice when more than 300 results match the current filters */}
           {filtered.length > 300 && (
-            <div style={{ textAlign: "center", padding: "11px", color: "#374151", fontFamily: "monospace", fontSize: 10, borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+            <div style={{ textAlign: "center", padding: "11px", color: "#6b7280", fontFamily: mono, fontSize: 10, borderTop: "1px solid rgba(255,255,255,0.04)" }}>
               Showing top 300 of {filtered.length.toLocaleString()} — refine your search to see more
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div style={{ textAlign: "center", paddingTop: 18, color: "#1f2937", fontSize: 10, fontFamily: "monospace" }}>
+        <div style={{ textAlign: "center", paddingTop: 18, color: "#4a5568", fontSize: 10, fontFamily: mono }}>
           Org list from{" "}
-          <a href="https://government.github.com/community/" target="_blank" rel="noreferrer" style={{ color: "#374151" }}>
+          <a href="https://government.github.com/community/" target="_blank" rel="noreferrer" style={{ color: "#6b7280" }}>
             github/government.github.com
           </a>
           {" · "}
           Inspired by the{" "}
-          <a href="https://www.uk-x-gov-software-community.org.uk/xgov-opensource-repo-scraper/" target="_blank" rel="noreferrer" style={{ color: "#374151" }}>
+          <a href="https://www.uk-x-gov-software-community.org.uk/xgov-opensource-repo-scraper/" target="_blank" rel="noreferrer" style={{ color: "#6b7280" }}>
             UK Cross-Gov OSS Leaderboard
           </a>
         </div>
