@@ -1,0 +1,9 @@
+{
+  "framework": "vite",
+  "crons": [
+    {
+      "path": "/api/cron/fetch-repos",
+      "schedule": "0 6 * * *"
+    }
+  ]
+}
