@@ -1,7 +1,7 @@
 /**
  * US Government Open Source Repository Leaderboard
  *
- * A live leaderboard of public GitHub repositories from US government
+ * A leaderboard of public GitHub repositories from US government
  * organisations, inspired by the UK Cross-Government OSS Leaderboard:
  * https://www.uk-x-gov-software-community.org.uk/xgov-opensource-repo-scraper/
  *
@@ -9,37 +9,13 @@
  * https://github.com/github/government.github.com/blob/gh-pages/_data/governments.yml
  *
  * HOW IT WORKS:
- * - On load, the user clicks "Load All Agencies"
- * - The app loops through all 331 US gov GitHub organisations
- * - For each org it calls the GitHub REST API: GET /orgs/{org}/repos
- * - Repos are accumulated into state and rendered live as they arrive
- * - Forks and archived repos are excluded (same approach as the UK tool)
+ * - On load, fetches pre-cached repo data from /api/repos (Vercel serverless)
  * - The user can filter by category, language, sort order, and free-text search
- *
- * RATE LIMITS:
- * - Unauthenticated: 60 requests/hour — covers roughly 60 orgs
- * - With a Personal Access Token (no scopes needed): 5,000 requests/hour
- * - Token is passed in the Authorization header; never stored anywhere
- *
- * TO RUN LOCALLY:
- *   npm create vite@latest us-gov-oss -- --template react
- *   cd us-gov-oss
- *   npm install
- *   # Replace src/App.jsx with this file
- *   npm run dev
- *
- * SUGGESTED NEXT STEPS FOR CLAUDE CODE:
- * - Add a GitHub Actions workflow that runs nightly, fetches all repo data,
- *   and saves it to a static JSON file (avoids rate limits for end users)
- * - Add charts: stars by category, most active languages, top agencies
- * - Add pagination so all results are browsable, not just top 300
- * - Expand to include UK, Canadian, Australian orgs from the same governments.yml
- * - Add a "last updated" timestamp and stale-data warning
- * - Deploy as a static site to GitHub Pages or Cloudflare Pages
+ * - Forks and archived repos are excluded server-side
  */
 
-import { useState, useEffect, useRef } from "react";
-import { ORGS, CATEGORIES } from "../lib/orgs.js";
+import { useState, useEffect } from "react";
+import { CATEGORIES } from "../lib/orgs.js";
 
 /**
  * GitHub's language colour palette, used to render the coloured dot next to
@@ -93,149 +69,31 @@ function fmtDate(iso) {
 // ---------------------------------------------------------------------------
 
 export default function App() {
-  // -- App phase ------------------------------------------------------------
-  // Controls which screen is shown. One of:
-  //   "welcome"  - landing page, user hasn't started loading yet
-  //   "loading"  - actively fetching repos from the GitHub API
-  //   "done"     - all orgs fetched (or rate limited), table is browsable
-  //   "fatal"    - first API call failed completely (e.g. network blocked)
-  const [phase, setPhase] = useState("welcome");
-
-  // -- Fetched data ---------------------------------------------------------
-  // Flat array of repo objects. Grows in real time as each org is fetched.
-  // Each object shape is documented in the fetch loop below.
+  const [phase, setPhase] = useState("loading");
   const [repos, setRepos] = useState([]);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [errorMsg, setErrorMsg] = useState("");
 
-  // -- Loading progress -----------------------------------------------------
-  const [orgIndex, setOrgIndex] = useState(0);   // how many orgs processed so far
-  const [orgName, setOrgName] = useState("");     // name of the org currently being fetched
+  const [sortBy, setSortBy] = useState("stars");
+  const [filterCat, setFilterCat] = useState("All");
+  const [filterLang, setFilterLang] = useState("all");
+  const [search, setSearch] = useState("");
 
-  // -- Error state ----------------------------------------------------------
-  const [fatalMsg, setFatalMsg] = useState("");         // shown on the fatal error screen
-  const [rateLimitedAt, setRateLimitedAt] = useState(null); // org index at which rate limit hit
-
-  // -- Auth -----------------------------------------------------------------
-  const [token, setToken] = useState(import.meta.env.VITE_GITHUB_TOKEN || "");
-  const [showToken, setShowToken] = useState(false);
-
-  // -- Filters & sort -------------------------------------------------------
-  const [sortBy, setSortBy] = useState("stars");      // "stars" | "forks" | "issues" | "updated"
-  const [filterCat, setFilterCat] = useState("All");  // category filter
-  const [filterLang, setFilterLang] = useState("all"); // language filter
-  const [search, setSearch] = useState("");            // free-text search
-
-  // ---------------------------------------------------------------------------
-  // FETCH LOGIC
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Main data loading function. Called when the user clicks "Load All Agencies".
-   *
-   * Strategy:
-   * - Loops through all entries in ORGS sequentially (one request per org)
-   * - Fetches up to 100 repos per org, sorted by stars descending
-   * - Excludes forks and archived repos to match the UK leaderboard's approach
-   * - Calls setRepos() after each org so the table updates in real time
-   * - Sleeps 100ms between requests to be polite to the API
-   * - Stops and sets rateLimitedAt if GitHub returns 403 or 429
-   * - Sets phase "fatal" if the very first request fails at the network level
-   *   (which happens when running inside the Claude.ai sandbox)
-   */
-  async function startLoading() {
-    setPhase("loading");
-    setRepos([]);
-    setOrgIndex(0);
-    setFatalMsg("");
-    setRateLimitedAt(null);
-
-    const headers = { Accept: "application/vnd.github+json" };
-    if (token.trim()) {
-      headers["Authorization"] = "Bearer " + token.trim();
-    }
-
-    const BATCH_SIZE = token.trim() ? 10 : 3;
-    const accumulated = [];
-    let rateLimited = false;
-
-    for (let i = 0; i < ORGS.length; i += BATCH_SIZE) {
-      if (rateLimited) break;
-
-      const batch = ORGS.slice(i, i + BATCH_SIZE);
-      setOrgIndex(i + batch.length);
-      setOrgName(batch.map((o) => o.name).join(", "));
-
-      const results = await Promise.allSettled(
-        batch.map((org) =>
-          fetch(
-            "https://api.github.com/orgs/" + org.name + "/repos?type=public&per_page=100&sort=stars",
-            { headers }
-          ).then(async (res) => ({ res, org }))
-        )
-      );
-
-      for (const result of results) {
-        if (result.status === "rejected") {
-          // Network failure on the very first batch → fatal
-          if (i === 0 && accumulated.length === 0) {
-            setFatalMsg(
-              "Could not reach api.github.com — " + result.reason.message +
-              "\n\nTo use this app, run it locally with: npm run dev"
-            );
-            setPhase("fatal");
-            return;
-          }
-          continue;
-        }
-
-        const { res, org } = result.value;
-
-        if (res.status === 403 || res.status === 429) {
-          setRateLimitedAt(i);
-          rateLimited = true;
-          continue;
-        }
-
-        if (!res.ok) continue;
-
-        let data;
-        try { data = await res.json(); } catch { continue; }
-
-        if (Array.isArray(data)) {
-          for (const r of data) {
-            if (r.fork === false && r.archived === false) {
-              accumulated.push({
-                id: r.id,
-                name: r.name,
-                url: r.html_url,
-                desc: r.description || "",
-                stars: r.stargazers_count || 0,
-                forks: r.forks_count || 0,
-                issues: r.open_issues_count || 0,
-                lang: r.language || null,
-                updated: r.pushed_at || null,
-                license: r.license ? r.license.spdx_id : null,
-                org: org.name,
-                category: org.category,
-                emoji: org.emoji,
-              });
-            }
-          }
-        }
-      }
-
-      setRepos(accumulated.slice());
-    }
-
-    setPhase("done");
-  }
-
-  // Auto-load on mount
-  const hasStarted = useRef(false);
   useEffect(() => {
-    if (!hasStarted.current) {
-      hasStarted.current = true;
-      startLoading();
-    }
+    fetch("/api/repos")
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        setRepos(data.repos);
+        setLastUpdated(data.lastUpdated);
+        setPhase("done");
+      })
+      .catch((err) => {
+        setErrorMsg("Could not load repository data: " + err.message);
+        setPhase("fatal");
+      });
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -269,9 +127,6 @@ export default function App() {
 
   /** Running total of stars across all fetched repos (shown in stats bar). */
   const totalStars = repos.reduce((s, r) => s + r.stars, 0);
-
-  /** Progress bar percentage (0–100). */
-  const progress = Math.round((orgIndex / ORGS.length) * 100);
 
   const isLoading = phase === "loading";
 
@@ -315,23 +170,6 @@ export default function App() {
   );
 
   // ---------------------------------------------------------------------------
-  // RENDER: WELCOME SCREEN (brief splash while autoload begins)
-  // ---------------------------------------------------------------------------
-
-  if (phase === "welcome") {
-    return (
-      <div>
-        <Header />
-        <div style={{ maxWidth: 960, margin: "0 auto", padding: "60px 15px", textAlign: "center" }}>
-          <h1 style={{ fontSize: 36, fontWeight: 700, marginBottom: 10 }}>Open Source Repository Leaderboard</h1>
-          <p style={{ fontSize: 19, color: "#505a5f" }}>Loading repositories from {ORGS.length} US government organisations...</p>
-        </div>
-        <Footer />
-      </div>
-    );
-  }
-
-  // ---------------------------------------------------------------------------
   // RENDER: FATAL ERROR SCREEN
   // ---------------------------------------------------------------------------
 
@@ -342,14 +180,8 @@ export default function App() {
         <div style={{ maxWidth: 960, margin: "0 auto", padding: "40px 15px" }}>
           <div style={{ borderLeft: "5px solid #d4351c", padding: "15px 20px", marginBottom: 30 }}>
             <h2 style={{ fontSize: 24, fontWeight: 700, color: "#d4351c", marginBottom: 10 }}>There is a problem</h2>
-            <p style={{ fontSize: 16, color: "#0b0c0c", marginBottom: 10 }}>GitHub API could not be reached.</p>
-            <pre style={{ fontSize: 14, color: "#505a5f", whiteSpace: "pre-wrap", wordBreak: "break-word", margin: 0 }}>
-              {fatalMsg}
-            </pre>
+            <p style={{ fontSize: 16, color: "#0b0c0c" }}>{errorMsg}</p>
           </div>
-          <button className="govuk-btn govuk-btn--secondary" onClick={startLoading}>
-            Try again
-          </button>
         </div>
         <Footer />
       </div>
@@ -378,16 +210,16 @@ export default function App() {
           Open Source Repository Leaderboard
         </h1>
         <p style={{ fontSize: 19, color: "#505a5f", marginBottom: 30 }}>
-          Public repositories from {ORGS.length} US government organisations on GitHub.
+          Public repositories from US government organisations on GitHub.
         </p>
 
         {/* Stats summary */}
         <div style={{ display: "flex", gap: 30, flexWrap: "wrap", marginBottom: 30, padding: "20px 0", borderTop: "1px solid #b1b4b6", borderBottom: "1px solid #b1b4b6" }}>
           {[
-            ["Organisations", orgIndex + " of " + ORGS.length],
             ["Repositories", repos.length.toLocaleString()],
             ["Total stars", fmtNum(totalStars)],
             ["Languages", String(langs.length - 1)],
+            ["Last updated", lastUpdated ? fmtDate(lastUpdated) : "—"],
           ].map(([label, value]) => (
             <div key={label}>
               <div style={{ fontSize: 36, fontWeight: 700, color: "#0b0c0c", lineHeight: 1 }}>{value}</div>
@@ -395,32 +227,6 @@ export default function App() {
             </div>
           ))}
         </div>
-
-        {/* Progress bar — only shown while loading */}
-        {isLoading && (
-          <div style={{ marginBottom: 30 }}>
-            <div style={{ fontSize: 14, color: "#505a5f", marginBottom: 5 }}>
-              Fetching: {orgName}
-            </div>
-            <div style={{ width: "100%", height: 8, background: "#f3f2f1" }}>
-              <div style={{ width: progress + "%", height: "100%", background: "#1d70b8", transition: "width 0.3s" }} />
-            </div>
-            <div style={{ fontSize: 14, color: "#505a5f", marginTop: 5 }}>
-              {progress}% complete — {orgIndex} of {ORGS.length} organisations — {repos.length} repositories found
-            </div>
-          </div>
-        )}
-
-        {/* Rate limit warning */}
-        {rateLimitedAt !== null && (
-          <div style={{ borderLeft: "5px solid #f47738", padding: "15px 20px", marginBottom: 30, background: "#fef7f1" }}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 5 }}>Rate limit reached</h3>
-            <p style={{ fontSize: 16, color: "#0b0c0c", margin: "0 0 10px" }}>
-              Showing partial results ({rateLimitedAt} of {ORGS.length} organisations). Add a GitHub personal access token below and reload for complete data.
-            </p>
-            <button className="govuk-btn govuk-btn--secondary" onClick={startLoading}>Reload data</button>
-          </div>
-        )}
 
         {/* Filters */}
         <div style={{ marginBottom: 20 }}>
@@ -461,20 +267,6 @@ export default function App() {
                 ))}
               </select>
             </div>
-            <div>
-              <label style={{ display: "block", fontSize: 16, fontWeight: 700, marginBottom: 5 }}>GitHub token</label>
-              <input
-                className="govuk-input"
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                placeholder="ghp_..."
-                type="password"
-                style={{ width: 180 }}
-              />
-            </div>
-            <button className="govuk-btn govuk-btn--secondary" onClick={startLoading}>
-              Reload
-            </button>
           </div>
         </div>
 
