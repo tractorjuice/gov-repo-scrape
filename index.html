@@ -1,35 +1,100 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="govuk-template">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>US Gov Open Source Leaderboard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet" />
     <style>
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-      body { background: #05080f; }
-      /* Focus-visible outlines for accessibility */
-      :focus-visible { outline: 2px solid #7eb6ff; outline-offset: 2px; }
-      input:focus-visible, select:focus-visible, button:focus-visible {
-        outline: 2px solid #7eb6ff; outline-offset: 1px;
+      html { background: #f3f2f1; }
+      body {
+        font-family: 'Source Sans 3', Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        color: #0b0c0c;
+        background: #fff;
       }
-      /* Table row hover via CSS instead of JS */
-      .repo-row { transition: background 0.15s ease; }
-      .repo-row:hover { background: rgba(255,255,255,0.035) !important; }
-      /* Entrance animations */
-      @keyframes fadeUp {
-        from { opacity: 0; transform: translateY(12px); }
-        to { opacity: 1; transform: translateY(0); }
+
+      /* GOV.UK focus style */
+      :focus-visible {
+        outline: 3px solid #fd0;
+        outline-offset: 0;
+        box-shadow: inset 0 0 0 2px #0b0c0c;
       }
-      .fade-up { animation: fadeUp 0.4s ease both; }
-      .fade-up-1 { animation-delay: 0.05s; }
-      .fade-up-2 { animation-delay: 0.1s; }
-      .fade-up-3 { animation-delay: 0.15s; }
-      .fade-up-4 { animation-delay: 0.2s; }
-      /* Sticky table header */
-      thead th { position: sticky; top: 0; z-index: 1; background: #080d18; }
+
+      /* GOV.UK link styles */
+      a { color: #1d70b8; text-decoration: underline; text-decoration-thickness: max(1px, .0625rem); text-underline-offset: .15em; }
+      a:visited { color: #4c2c92; }
+      a:hover { color: #003078; text-decoration-thickness: max(3px, .1875rem); }
+      a:focus { color: #0b0c0c; background: #fd0; outline: 3px solid transparent; box-shadow: 0 -2px #fd0, 0 4px #0b0c0c; text-decoration: none; }
+
+      /* Table row hover */
+      .repo-row { transition: background 0.1s ease; }
+      .repo-row:hover { background: #f3f2f1 !important; }
+
+      /* Sticky header */
+      thead th { position: sticky; top: 0; z-index: 1; background: #fff; }
+
+      /* GOV.UK button */
+      .govuk-btn {
+        font-family: 'Source Sans 3', Arial, sans-serif;
+        font-size: 16px; font-weight: 600;
+        padding: 8px 16px;
+        border: 2px solid transparent;
+        border-radius: 0;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-block;
+        box-shadow: 0 2px 0 #002d18;
+      }
+      .govuk-btn:active { top: 2px; box-shadow: none; }
+      .govuk-btn--primary { background: #00703c; color: #fff; }
+      .govuk-btn--primary:hover { background: #005a30; }
+      .govuk-btn--secondary { background: #f3f2f1; color: #0b0c0c; box-shadow: 0 2px 0 #929191; }
+      .govuk-btn--secondary:hover { background: #dbdad9; }
+
+      /* GOV.UK input */
+      .govuk-input {
+        font-family: 'Source Sans 3', Arial, sans-serif;
+        font-size: 16px;
+        padding: 5px 10px;
+        border: 2px solid #0b0c0c;
+        border-radius: 0;
+        background: #fff;
+        color: #0b0c0c;
+        height: 40px;
+      }
+      .govuk-input:focus { outline: 3px solid #fd0; outline-offset: 0; box-shadow: inset 0 0 0 2px #0b0c0c; }
+
+      /* GOV.UK select */
+      .govuk-select {
+        font-family: 'Source Sans 3', Arial, sans-serif;
+        font-size: 16px;
+        padding: 5px 10px;
+        border: 2px solid #0b0c0c;
+        border-radius: 0;
+        background: #fff;
+        color: #0b0c0c;
+        height: 40px;
+        cursor: pointer;
+      }
+      .govuk-select:focus { outline: 3px solid #fd0; outline-offset: 0; box-shadow: inset 0 0 0 2px #0b0c0c; }
+
+      /* GOV.UK tag */
+      .govuk-tag {
+        display: inline-block;
+        padding: 2px 8px;
+        font-size: 14px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+      .govuk-tag--grey { background: #eeefef; color: #383f43; }
+      .govuk-tag--blue { background: #d2e2f1; color: #144e81; }
+      .govuk-tag--green { background: #cce2d8; color: #005a30; }
     </style>
   </head>
   <body>

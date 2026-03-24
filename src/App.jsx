@@ -655,31 +655,43 @@ export default function App() {
   const isLoading = phase === "loading";
 
   // ---------------------------------------------------------------------------
-  // SHARED STYLES
+  // GOV.UK STYLE HEADER
   // ---------------------------------------------------------------------------
 
-  const mono = "'JetBrains Mono', monospace";
-  const display = "'DM Serif Display', Georgia, serif";
+  const Header = () => (
+    <header style={{ background: "#0b0c0c", borderBottom: "10px solid #1d70b8" }}>
+      <div style={{ maxWidth: 960, margin: "0 auto", padding: "10px 15px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <a href="/" style={{ color: "#fff", textDecoration: "none", fontWeight: 700, fontSize: 24 }}>
+          <span style={{ fontWeight: 700 }}>US.GOV</span>
+          <span style={{ fontWeight: 400, marginLeft: 5, fontSize: 16, color: "#a0a0a0" }}>Open Source</span>
+        </a>
+        <span style={{ color: "#fff", fontSize: 14 }}>
+          <strong style={{ color: "#fd0" }}>BETA</strong>
+        </span>
+      </div>
+    </header>
+  );
 
-  const S = {
-    page: {
-      minHeight: "100vh",
-      background: "#05080f",
-      color: "#e8eaf0",
-      fontFamily: mono,
-    },
-    select: {
-      background: "#0d1220",
-      border: "1px solid rgba(255,255,255,0.12)",
-      borderRadius: 7,
-      padding: "8px 12px",
-      color: "#e8eaf0",
-      fontSize: 12,
-      fontFamily: mono,
-      cursor: "pointer",
-      transition: "border-color 0.15s",
-    },
-  };
+  // ---------------------------------------------------------------------------
+  // GOV.UK STYLE FOOTER
+  // ---------------------------------------------------------------------------
+
+  const Footer = () => (
+    <footer style={{ background: "#f3f2f1", borderTop: "1px solid #b1b4b6", marginTop: 40 }}>
+      <div style={{ maxWidth: 960, margin: "0 auto", padding: "25px 15px 15px" }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 10, color: "#0b0c0c" }}>About this service</h2>
+        <p style={{ fontSize: 14, color: "#505a5f", lineHeight: 1.6, marginBottom: 15 }}>
+          Organisation list sourced from{" "}
+          <a href="https://government.github.com/community/" target="_blank" rel="noreferrer">github/government.github.com</a>.
+          {" "}Inspired by the{" "}
+          <a href="https://www.uk-x-gov-software-community.org.uk/xgov-opensource-repo-scraper/" target="_blank" rel="noreferrer">UK Cross-Gov OSS Leaderboard</a>.
+        </p>
+        <div style={{ borderTop: "1px solid #b1b4b6", paddingTop: 15, fontSize: 14, color: "#505a5f" }}>
+          Built with data from the GitHub API
+        </div>
+      </div>
+    </footer>
+  );
 
   // ---------------------------------------------------------------------------
   // RENDER: WELCOME SCREEN (brief splash while autoload begins)
@@ -687,268 +699,275 @@ export default function App() {
 
   if (phase === "welcome") {
     return (
-      <div style={{ ...S.page, display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 10, letterSpacing: 6, textTransform: "uppercase", color: "#b22234", fontFamily: mono, marginBottom: 12 }}>
-            ★ &nbsp; United States Government &nbsp; ★
-          </div>
-          <h1 style={{ fontSize: "clamp(1.8rem, 5vw, 3rem)", fontWeight: 400, fontFamily: display, lineHeight: 1.15, margin: "0 0 14px", background: "linear-gradient(135deg, #fff 0%, #b8c4e0 55%, #b22234 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-            Open Source<br /><em>Repository Leaderboard</em>
-          </h1>
-          <div style={{ color: "#6b7280", fontFamily: mono, fontSize: 12 }}>⟳ Starting…</div>
+      <div>
+        <Header />
+        <div style={{ maxWidth: 960, margin: "0 auto", padding: "60px 15px", textAlign: "center" }}>
+          <h1 style={{ fontSize: 36, fontWeight: 700, marginBottom: 10 }}>Open Source Repository Leaderboard</h1>
+          <p style={{ fontSize: 19, color: "#505a5f" }}>Loading repositories from {ORGS.length} US government organisations...</p>
         </div>
+        <Footer />
       </div>
     );
   }
 
   // ---------------------------------------------------------------------------
   // RENDER: FATAL ERROR SCREEN
-  // Shown when the very first network request fails (API unreachable).
   // ---------------------------------------------------------------------------
 
   if (phase === "fatal") {
     return (
-      <div style={{ ...S.page, display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
-        <div style={{ maxWidth: 540, textAlign: "center" }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>🚫</div>
-          <h2 style={{ fontFamily: mono, color: "#ff8a8a", marginBottom: 12 }}>GitHub API Unreachable</h2>
-          <pre style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "14px 16px", fontFamily: mono, fontSize: 11, color: "#6b7280", textAlign: "left", whiteSpace: "pre-wrap", wordBreak: "break-word", marginBottom: 20 }}>
-            {fatalMsg}
-          </pre>
-          <button
-            onClick={startLoading}
-            style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 7, padding: "8px 18px", color: "#a0aec0", fontFamily: mono, fontSize: 12, cursor: "pointer" }}
-          >
-            ← Back
+      <div>
+        <Header />
+        <div style={{ maxWidth: 960, margin: "0 auto", padding: "40px 15px" }}>
+          <div style={{ borderLeft: "5px solid #d4351c", padding: "15px 20px", marginBottom: 30 }}>
+            <h2 style={{ fontSize: 24, fontWeight: 700, color: "#d4351c", marginBottom: 10 }}>There is a problem</h2>
+            <p style={{ fontSize: 16, color: "#0b0c0c", marginBottom: 10 }}>GitHub API could not be reached.</p>
+            <pre style={{ fontSize: 14, color: "#505a5f", whiteSpace: "pre-wrap", wordBreak: "break-word", margin: 0 }}>
+              {fatalMsg}
+            </pre>
+          </div>
+          <button className="govuk-btn govuk-btn--secondary" onClick={startLoading}>
+            Try again
           </button>
         </div>
+        <Footer />
       </div>
     );
   }
 
   // ---------------------------------------------------------------------------
   // RENDER: MAIN LEADERBOARD
-  // Shown during loading (with progress bar) and after loading completes.
   // ---------------------------------------------------------------------------
 
   return (
-    <div style={S.page}>
-      <div style={{ maxWidth: 1300, margin: "0 auto", padding: "0 16px 40px" }}>
+    <div>
+      <Header />
+      <div style={{ maxWidth: 960, margin: "0 auto", padding: "0 15px 0" }}>
 
-        {/* Page title */}
-        <div style={{ textAlign: "center", padding: "32px 0 18px" }}>
-          <div style={{ fontSize: 10, letterSpacing: 5, textTransform: "uppercase", color: "#b22234", fontFamily: mono, marginBottom: 7 }}>
-            ★ &nbsp; United States Government &nbsp; ★
-          </div>
-          <h1 style={{ fontSize: "clamp(1.4rem, 3vw, 2.4rem)", fontWeight: 400, fontFamily: display, margin: 0, background: "linear-gradient(135deg, #fff 0%, #b8c4e0 55%, #b22234 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-            Open Source Repository Leaderboard
-          </h1>
+        {/* Phase banner */}
+        <div style={{ borderBottom: "1px solid #b1b4b6", padding: "10px 0", marginBottom: 30, display: "flex", alignItems: "center", gap: 10, fontSize: 14 }}>
+          <strong className="govuk-tag govuk-tag--blue" style={{ fontSize: 12 }}>BETA</strong>
+          <span style={{ color: "#505a5f" }}>
+            This is a new service. Data is fetched live from the GitHub API.
+          </span>
         </div>
 
-        {/* Stats pills */}
-        <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap", marginBottom: 16 }}>
+        {/* Page heading */}
+        <h1 style={{ fontSize: 36, fontWeight: 700, marginBottom: 10 }}>
+          Open Source Repository Leaderboard
+        </h1>
+        <p style={{ fontSize: 19, color: "#505a5f", marginBottom: 30 }}>
+          Public repositories from {ORGS.length} US government organisations on GitHub.
+        </p>
+
+        {/* Stats summary */}
+        <div style={{ display: "flex", gap: 30, flexWrap: "wrap", marginBottom: 30, padding: "20px 0", borderTop: "1px solid #b1b4b6", borderBottom: "1px solid #b1b4b6" }}>
           {[
-            ["Orgs",       orgIndex + " / " + ORGS.length],
-            ["Repos",      repos.length.toLocaleString()],
-            ["★ Stars",    fmtNum(totalStars)],
-            ["Languages",  langs.length - 1],
-          ].map(([label, value], i) => (
-            <div key={label} className={`fade-up fade-up-${i + 1}`} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "8px 18px", textAlign: "center" }}>
-              <div style={{ fontSize: 17, fontWeight: 700, color: "#fff", fontFamily: mono }}>{value}</div>
-              <div style={{ fontSize: 10, color: "#6b7280", letterSpacing: 1, textTransform: "uppercase", fontFamily: mono }}>{label}</div>
+            ["Organisations", orgIndex + " of " + ORGS.length],
+            ["Repositories", repos.length.toLocaleString()],
+            ["Total stars", fmtNum(totalStars)],
+            ["Languages", String(langs.length - 1)],
+          ].map(([label, value]) => (
+            <div key={label}>
+              <div style={{ fontSize: 36, fontWeight: 700, color: "#0b0c0c", lineHeight: 1 }}>{value}</div>
+              <div style={{ fontSize: 16, color: "#505a5f", marginTop: 5 }}>{label}</div>
             </div>
           ))}
         </div>
 
         {/* Progress bar — only shown while loading */}
         {isLoading && (
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ width: "100%", height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 2 }}>
-              <div style={{ width: progress + "%", height: "100%", background: "linear-gradient(90deg, #b22234, #3c3b6e)", borderRadius: 2, transition: "width 0.3s" }} />
+          <div style={{ marginBottom: 30 }}>
+            <div style={{ fontSize: 14, color: "#505a5f", marginBottom: 5 }}>
+              Fetching: {orgName}
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontFamily: mono, fontSize: 10, color: "#6b7280" }}>
-              <span>⟳ {orgName}</span>
-              <span>{progress}% · {orgIndex}/{ORGS.length} orgs · {repos.length} repos found</span>
+            <div style={{ width: "100%", height: 8, background: "#f3f2f1" }}>
+              <div style={{ width: progress + "%", height: "100%", background: "#1d70b8", transition: "width 0.3s" }} />
+            </div>
+            <div style={{ fontSize: 14, color: "#505a5f", marginTop: 5 }}>
+              {progress}% complete — {orgIndex} of {ORGS.length} organisations — {repos.length} repositories found
             </div>
           </div>
         )}
 
-        {/* Rate limit warning banner */}
+        {/* Rate limit warning */}
         {rateLimitedAt !== null && (
-          <div style={{ background: "rgba(178,34,52,0.09)", border: "1px solid rgba(178,34,52,0.3)", borderRadius: 7, padding: "9px 14px", marginBottom: 14, color: "#ff8a8a", fontFamily: mono, fontSize: 11, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span>⚠️ Rate limited after {rateLimitedAt}/{ORGS.length} orgs — partial results shown. Add a GitHub token and reload for full data.</span>
-            <button onClick={startLoading} style={{ background: "rgba(178,34,52,0.2)", border: "1px solid #b22234", borderRadius: 4, padding: "3px 8px", color: "#ff8a8a", cursor: "pointer", fontFamily: mono, fontSize: 10 }}>← Reset</button>
+          <div style={{ borderLeft: "5px solid #f47738", padding: "15px 20px", marginBottom: 30, background: "#fef7f1" }}>
+            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 5 }}>Rate limit reached</h3>
+            <p style={{ fontSize: 16, color: "#0b0c0c", margin: "0 0 10px" }}>
+              Showing partial results ({rateLimitedAt} of {ORGS.length} organisations). Add a GitHub personal access token below and reload for complete data.
+            </p>
+            <button className="govuk-btn govuk-btn--secondary" onClick={startLoading}>Reload data</button>
           </div>
         )}
 
-        {/* Controls bar: search, sort, category filter, language filter */}
-        <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 9, padding: "10px 12px", marginBottom: 12, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-
-          {/* Free-text search: matches repo name or description */}
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="🔍 Search repos…"
-            style={{ flex: "1 1 150px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 7, padding: "8px 12px", color: "#e8eaf0", fontSize: 12, fontFamily: mono, transition: "border-color 0.15s" }}
-          />
-
-          {/* Sort order */}
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={S.select}>
-            <option value="stars">★ Stars</option>
-            <option value="forks">⑂ Forks</option>
-            <option value="issues">● Issues</option>
-            <option value="updated">↻ Updated</option>
-          </select>
-
-          {/* Category filter */}
-          <select value={filterCat} onChange={(e) => setFilterCat(e.target.value)} style={{ ...S.select, maxWidth: 220 }}>
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c} style={{ background: "#0d1220" }}>{c}</option>
-            ))}
-          </select>
-
-          {/* Language filter — options built dynamically from fetched repos */}
-          <select value={filterLang} onChange={(e) => setFilterLang(e.target.value)} style={S.select}>
-            {langs.map((l) => (
-              <option key={l} value={l} style={{ background: "#0d1220" }}>
-                {l === "all" ? "All Languages" : l}
-              </option>
-            ))}
-          </select>
-
-          {/* Result count */}
-          <span style={{ fontSize: 10, color: "#6b7280", fontFamily: mono, marginLeft: "auto" }}>
-            {filtered.length.toLocaleString()} repos
-          </span>
-
-          {/* Token input + reload */}
-          <input
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            placeholder="GitHub token (optional)"
-            type="password"
-            style={{ width: 160, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 7, padding: "7px 10px", color: "#e8eaf0", fontSize: 10, fontFamily: mono, transition: "border-color 0.15s" }}
-          />
-          <button
-            onClick={startLoading}
-            style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 6, padding: "5px 10px", color: "#6b7280", fontFamily: mono, fontSize: 10, cursor: "pointer", transition: "border-color 0.15s, color 0.15s" }}
-          >
-            ↻ Reload
-          </button>
+        {/* Filters */}
+        <div style={{ marginBottom: 20 }}>
+          <h2 style={{ fontSize: 19, fontWeight: 700, marginBottom: 15 }}>Filter repositories</h2>
+          <div style={{ display: "flex", gap: 15, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <div style={{ flex: "1 1 200px" }}>
+              <label style={{ display: "block", fontSize: 16, fontWeight: 700, marginBottom: 5 }}>Search</label>
+              <input
+                className="govuk-input"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name or description"
+                style={{ width: "100%" }}
+              />
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: 16, fontWeight: 700, marginBottom: 5 }}>Sort by</label>
+              <select className="govuk-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                <option value="stars">Stars</option>
+                <option value="forks">Forks</option>
+                <option value="issues">Open issues</option>
+                <option value="updated">Last updated</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: 16, fontWeight: 700, marginBottom: 5 }}>Category</label>
+              <select className="govuk-select" value={filterCat} onChange={(e) => setFilterCat(e.target.value)}>
+                {CATEGORIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: 16, fontWeight: 700, marginBottom: 5 }}>Language</label>
+              <select className="govuk-select" value={filterLang} onChange={(e) => setFilterLang(e.target.value)}>
+                {langs.map((l) => (
+                  <option key={l} value={l}>{l === "all" ? "All languages" : l}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: 16, fontWeight: 700, marginBottom: 5 }}>GitHub token</label>
+              <input
+                className="govuk-input"
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                placeholder="ghp_..."
+                type="password"
+                style={{ width: 180 }}
+              />
+            </div>
+            <button className="govuk-btn govuk-btn--secondary" onClick={startLoading}>
+              Reload
+            </button>
+          </div>
         </div>
+
+        {/* Result count */}
+        <p style={{ fontSize: 16, color: "#505a5f", marginBottom: 15 }}>
+          Showing <strong>{Math.min(filtered.length, 300).toLocaleString()}</strong> of{" "}
+          <strong>{filtered.length.toLocaleString()}</strong> repositories
+        </p>
 
         {/* Repo table */}
-        <div style={{ border: "1px solid rgba(255,255,255,0.07)", borderRadius: 9, overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid rgba(178,34,52,0.28)" }}>
-                {[
-                  ["#", "right", 40], ["Repository", "left", undefined], ["Org / Category", "left", 170],
-                  ["Language", "left", 108], ["Stars", "right", 68], ["Forks", "right", 60],
-                  ["Issues", "right", 65], ["Updated", "left", 108],
-                ].map(([label, align, w]) => (
-                  <th key={label} style={{ padding: "10px 11px", textAlign: align, color: "#8892a4", fontFamily: mono, fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 600, width: w }}>
-                    {label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {/* Render top 300 filtered results */}
-              {filtered.slice(0, 300).map((repo, idx) => (
-                <tr
-                  key={repo.id}
-                  className="repo-row"
-                  style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
-                >
-                  <td style={{ padding: "10px 11px", textAlign: "right", fontFamily: mono, fontSize: 11, fontWeight: 700, color: idx < 3 ? "#b22234" : "#4a5568" }}>
-                    {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : idx + 1}
-                  </td>
-
-                  <td style={{ padding: "10px 7px 10px 0", maxWidth: 340 }}>
-                    <a href={repo.url} target="_blank" rel="noreferrer" style={{ color: "#7eb6ff", textDecoration: "none", fontWeight: 600, fontFamily: mono, fontSize: 13 }}>
-                      {repo.name}
-                    </a>
-                    {repo.desc && (
-                      <div style={{ color: "#6b7280", fontSize: 12, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>
-                        {repo.desc}
-                      </div>
-                    )}
-                    {repo.license && (
-                      <span style={{ display: "inline-block", marginTop: 3, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 3, padding: "1px 6px", fontSize: 10, color: "#4a5568", fontFamily: mono }}>
-                        {repo.license}
-                      </span>
-                    )}
-                  </td>
-
-                  <td style={{ padding: "10px 11px" }}>
-                    <div style={{ fontFamily: mono, fontSize: 11, color: "#9ca3af" }}>{repo.emoji} {repo.org}</div>
-                    <div style={{ fontFamily: mono, fontSize: 10, color: "#4a5568", marginTop: 2 }}>{repo.category}</div>
-                  </td>
-
-                  <td style={{ padding: "10px 11px" }}>
-                    {repo.lang && (
-                      <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                        <span style={{ width: 9, height: 9, borderRadius: "50%", background: LANG_COLORS[repo.lang] || "#555", flexShrink: 0 }} />
-                        <span style={{ color: "#9ca3af", fontSize: 11, fontFamily: mono }}>{repo.lang}</span>
-                      </span>
-                    )}
-                  </td>
-
-                  <td style={{ padding: "10px 11px", textAlign: "right", fontFamily: mono, fontSize: 12, color: repo.stars > 500 ? "#fbbf24" : repo.stars > 50 ? "#9ca3af" : "#4a5568", fontWeight: repo.stars > 500 ? 700 : 400 }}>
-                    {fmtNum(repo.stars)}
-                  </td>
-
-                  <td style={{ padding: "10px 11px", textAlign: "right", fontFamily: mono, fontSize: 12, color: "#6b7280" }}>
-                    {fmtNum(repo.forks)}
-                  </td>
-
-                  <td style={{ padding: "10px 11px", textAlign: "right", fontFamily: mono, fontSize: 12, color: "#6b7280" }}>
-                    {fmtNum(repo.issues)}
-                  </td>
-
-                  <td style={{ padding: "10px 11px", fontFamily: mono, fontSize: 11, color: "#4a5568", whiteSpace: "nowrap" }}>
-                    {fmtDate(repo.updated)}
-                  </td>
-                </tr>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 16, marginBottom: 30 }}>
+          <thead>
+            <tr>
+              {[
+                ["#", "right", 40],
+                ["Repository", "left", undefined],
+                ["Organisation", "left", 160],
+                ["Language", "left", 110],
+                ["Stars", "right", 70],
+                ["Forks", "right", 70],
+                ["Issues", "right", 70],
+                ["Updated", "left", 120],
+              ].map(([label, align, w]) => (
+                <th key={label} style={{
+                  padding: "12px 10px 12px 0",
+                  textAlign: align,
+                  fontWeight: 700,
+                  fontSize: 16,
+                  borderBottom: "2px solid #0b0c0c",
+                  color: "#0b0c0c",
+                  width: w,
+                }}>
+                  {label}
+                </th>
               ))}
-            </tbody>
-          </table>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.slice(0, 300).map((repo, idx) => (
+              <tr key={repo.id} className="repo-row" style={{ borderBottom: "1px solid #b1b4b6" }}>
+                <td style={{ padding: "12px 10px 12px 0", textAlign: "right", fontWeight: 700, color: idx < 3 ? "#1d70b8" : "#505a5f", fontSize: 16 }}>
+                  {idx + 1}
+                </td>
 
-          {/* Empty state while loading */}
-          {repos.length === 0 && isLoading && (
-            <div style={{ textAlign: "center", padding: "48px 0", color: "#6b7280", fontFamily: mono, fontSize: 12 }}>
-              ⟳ Fetching {orgName}…
-            </div>
-          )}
+                <td style={{ padding: "12px 10px 12px 0" }}>
+                  <a href={repo.url} target="_blank" rel="noreferrer" style={{ fontWeight: 700, fontSize: 16 }}>
+                    {repo.name}
+                  </a>
+                  {repo.desc && (
+                    <div style={{ color: "#505a5f", fontSize: 14, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 380 }}>
+                      {repo.desc}
+                    </div>
+                  )}
+                  {repo.license && (
+                    <span className="govuk-tag govuk-tag--grey" style={{ marginTop: 4, fontSize: 12 }}>
+                      {repo.license}
+                    </span>
+                  )}
+                </td>
 
-          {repos.length === 0 && !isLoading && (
-            <div style={{ textAlign: "center", padding: "48px 0", color: "#6b7280", fontFamily: mono, fontSize: 12 }}>
-              No repos found — the API may be unreachable or all orgs returned empty results.
-            </div>
-          )}
+                <td style={{ padding: "12px 10px 12px 0" }}>
+                  <div style={{ fontSize: 14, color: "#0b0c0c" }}>{repo.org}</div>
+                  <div style={{ fontSize: 12, color: "#505a5f", marginTop: 2 }}>{repo.category}</div>
+                </td>
 
-          {filtered.length > 300 && (
-            <div style={{ textAlign: "center", padding: "11px", color: "#6b7280", fontFamily: mono, fontSize: 10, borderTop: "1px solid rgba(255,255,255,0.04)" }}>
-              Showing top 300 of {filtered.length.toLocaleString()} — refine your search to see more
-            </div>
-          )}
-        </div>
+                <td style={{ padding: "12px 10px 12px 0" }}>
+                  {repo.lang && (
+                    <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ width: 10, height: 10, borderRadius: "50%", background: LANG_COLORS[repo.lang] || "#505a5f", flexShrink: 0 }} />
+                      <span style={{ color: "#0b0c0c", fontSize: 14 }}>{repo.lang}</span>
+                    </span>
+                  )}
+                </td>
 
-        {/* Footer */}
-        <div style={{ textAlign: "center", paddingTop: 18, color: "#4a5568", fontSize: 10, fontFamily: mono }}>
-          Org list from{" "}
-          <a href="https://government.github.com/community/" target="_blank" rel="noreferrer" style={{ color: "#6b7280" }}>
-            github/government.github.com
-          </a>
-          {" · "}
-          Inspired by the{" "}
-          <a href="https://www.uk-x-gov-software-community.org.uk/xgov-opensource-repo-scraper/" target="_blank" rel="noreferrer" style={{ color: "#6b7280" }}>
-            UK Cross-Gov OSS Leaderboard
-          </a>
-        </div>
+                <td style={{ padding: "12px 10px 12px 0", textAlign: "right", fontSize: 16, fontWeight: repo.stars > 500 ? 700 : 400, color: "#0b0c0c" }}>
+                  {fmtNum(repo.stars)}
+                </td>
 
+                <td style={{ padding: "12px 10px 12px 0", textAlign: "right", fontSize: 16, color: "#505a5f" }}>
+                  {fmtNum(repo.forks)}
+                </td>
+
+                <td style={{ padding: "12px 10px 12px 0", textAlign: "right", fontSize: 16, color: "#505a5f" }}>
+                  {fmtNum(repo.issues)}
+                </td>
+
+                <td style={{ padding: "12px 10px 12px 0", fontSize: 14, color: "#505a5f", whiteSpace: "nowrap" }}>
+                  {fmtDate(repo.updated)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* Empty states */}
+        {repos.length === 0 && isLoading && (
+          <p style={{ textAlign: "center", padding: "40px 0", color: "#505a5f", fontSize: 19 }}>
+            Loading repositories...
+          </p>
+        )}
+
+        {repos.length === 0 && !isLoading && (
+          <p style={{ textAlign: "center", padding: "40px 0", color: "#505a5f", fontSize: 19 }}>
+            No repositories found. The API may be unreachable or all organisations returned empty results.
+          </p>
+        )}
+
+        {filtered.length > 300 && (
+          <p style={{ textAlign: "center", padding: "15px 0", color: "#505a5f", fontSize: 14, borderTop: "1px solid #b1b4b6" }}>
+            Showing top 300 of {filtered.length.toLocaleString()} results. Refine your search to see more.
+          </p>
+        )}
       </div>
+      <Footer />
     </div>
   );
 }
