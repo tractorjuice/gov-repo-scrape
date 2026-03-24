@@ -38,8 +38,7 @@ React app → single fetch("/api/repos") on mount → renders table with client-
 
 ### Deployment
 
-- **Vercel** (primary): Auto-deploys from main. Cron runs daily at 6am UTC. Env vars: `GH_TOKEN`, `BLOB_READ_WRITE_TOKEN`, `CRON_SECRET`.
-- **GitHub Pages** (static fallback): `.github/workflows/deploy.yml` builds and deploys on push. `vite.config.js` conditionally sets `base: '/gov-repo-scrape/'` when `GITHUB_ACTIONS` is set. Note: GitHub Pages has no API routes, so the app will show an error without server-side caching.
+Deployed on **Vercel**. Auto-deploys from main. Cron runs daily at 6am UTC. Env vars: `GH_TOKEN`, `BLOB_READ_WRITE_TOKEN`, `CRON_SECRET`.
 
 ## Key Constraints
 

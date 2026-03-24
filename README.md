@@ -10,18 +10,17 @@ Built with Vite + React. Styled after the GOV.UK Design System.
 
 A daily Vercel cron job fetches repo data from all 331 government GitHub organizations, paginates through all pages, and caches the result in Vercel Blob (~10,000 repos). When a visitor loads the site, the React app makes a single API call to `/api/repos` to get the cached data — no GitHub API calls from the browser, no token needed, instant load.
 
-## Quick Start
+## Development
 
 ```bash
 npm install
-npm run dev
+npm run dev        # Vite dev server (frontend only)
+vercel dev         # Full local dev with API routes
 ```
-
-Open http://localhost:5173. Note: local dev requires `vercel dev` instead of `npm run dev` to access the API routes — or connect to the production `/api/repos` endpoint.
 
 ## Deployment
 
-### Vercel
+Deployed on Vercel. To set up your own instance:
 
 1. Connect the repo to Vercel
 2. Add a Blob store in the Vercel dashboard and link it to the project
