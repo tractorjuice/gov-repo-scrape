@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-A live leaderboard of public GitHub repositories from 331 US government organizations. Vite + React, no backend — all GitHub API calls happen client-side in the browser.
+A leaderboard of public GitHub repositories from 331 US government organizations. Vite + React frontend, with server-side data caching via Vercel serverless functions and Vercel Blob.
 
 ## Development Commands
 
@@ -19,20 +19,29 @@ No test framework or linter is configured.
 
 ## Architecture
 
-All application logic lives in a single file: `src/App.jsx`. Entry point is `src/main.jsx` → renders `<App />` into `index.html`.
+### Data flow
 
-### src/App.jsx Structure
+```
+Vercel Cron (daily) → api/cron/fetch-repos.js → GitHub API (all 331 orgs, all pages) → Vercel Blob (repos.json)
+Browser → api/repos.js → reads Vercel Blob → returns cached JSON (edge-cached 1hr)
+React app → single fetch("/api/repos") on mount → renders table with client-side filters/sort
+```
 
-- **ORGS array** (~lines 53–401): Static list of 331 US gov GitHub org slugs with category and emoji. Sourced from `github/government.github.com/_data/governments.yml`. Eight categories: Federal, Military & Intelligence, States, Cities, Counties, Special Districts, Tribal Nations, Law Enforcement.
-- **App component** (line 479+): Single component, all state via `useState`. No routing, no external state library, no component library.
-- **Phase state machine**: `welcome` → `loading` → `done` | `fatal`. Controls which screen renders.
-- **`startLoading()`**: Sequential fetch loop over all orgs, calling `GET /orgs/{org}/repos?type=public&per_page=100&sort=stars`. Excludes forks and archived repos. Updates state after each org for progressive rendering. 100ms delay between requests.
-- **Filtering/sorting**: Client-side `.filter().sort()` chain. Filters: category, language, free-text (name + description). Sort: stars, forks, issues, updated. Display capped at 300 rows.
-- **Styling**: All inline styles, no CSS files. Dark theme (#05080f background) with US government color accents (#b22234 red, #3c3b6e blue).
+### Key files
+
+- **`lib/orgs.js`**: Shared data module — exports `ORGS` (331 org slugs with category/emoji) and `CATEGORIES`. Used by both the cron function and the React app.
+- **`api/cron/fetch-repos.js`**: Vercel serverless function. Fetches all orgs in parallel batches of 10, paginates through all pages, excludes forks/archived repos, writes result to Vercel Blob. Authenticated via `CRON_SECRET`.
+- **`api/repos.js`**: Vercel serverless function. Reads `repos.json` from Vercel Blob, returns it with edge caching headers.
+- **`src/App.jsx`**: React UI. Single component, all state via `useState`. Fetches from `/api/repos` on mount, then filters/sorts client-side. GOV.UK Design System styling (Source Sans 3 font, white background, blue links, green buttons).
+- **`src/main.jsx`**: Entry point, renders `<App />` into `index.html`.
+
+### Deployment
+
+- **Vercel** (primary): Auto-deploys from main. Cron runs daily at 6am UTC. Env vars: `GH_TOKEN`, `BLOB_READ_WRITE_TOKEN`, `CRON_SECRET`.
+- **GitHub Pages** (fallback): `.github/workflows/deploy.yml` builds and deploys on push. `vite.config.js` conditionally sets `base: '/gov-repo-scrape/'` when `GITHUB_ACTIONS` is set. Note: GitHub Pages version has no server-side caching.
 
 ## Key Constraints
 
-- **Rate limits**: Unauthenticated: 60 req/hr (~60 orgs). With a GitHub PAT (no scopes needed): 5,000 req/hr (all 331 orgs). Token passed via Authorization header, never persisted.
-- **Single-page fetch**: Only first 100 repos per org (GitHub API max per_page). No multi-page pagination.
 - **Render cap**: Top 300 filtered results displayed to keep DOM size manageable.
-- **No backend**: Cannot run in sandboxed environments (e.g., Claude.ai artifacts) — must run locally.
+- **Cron data**: Updated once daily. `lastUpdated` timestamp shown in the UI.
+- **Serverless functions**: Use Node.js `(req, res)` pattern (not Next.js). Located in `api/` directory.

@@ -1,8 +1,8 @@
 # gov-repo-scrape
 
-A live leaderboard of public GitHub repositories from 331 US government organizations — Federal, Military, States, Cities, Counties, Special Districts, Tribal Nations, and Law Enforcement.
+A leaderboard of public GitHub repositories from 331 US government organizations — Federal, Military, States, Cities, Counties, Special Districts, Tribal Nations, and Law Enforcement.
 
-Built with Vite + React. No backend — all GitHub API calls happen client-side in the browser. Data loads automatically on page open.
+Built with Vite + React. Styled after the GOV.UK Design System.
 
 ## Quick Start
 
@@ -11,16 +11,30 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173. Repos begin loading immediately.
+Open http://localhost:5173.
 
-## Rate Limits
+## How It Works
 
-| Mode | Limit | Coverage |
-|------|-------|----------|
-| No token | 60 req/hr | ~60 orgs |
-| With GitHub PAT | 5,000 req/hr | All 331 orgs |
+A daily Vercel cron job fetches repo data from all 331 government GitHub organizations, paginates through all pages, and caches the result in Vercel Blob. When a visitor loads the site, the React app makes a single API call to `/api/repos` to get the cached data — no GitHub API calls from the browser, no token needed.
 
-To use a token, create a [Personal Access Token](https://github.com/settings/tokens) with **no scopes** — it's only used for read-only public API calls in your browser and is never persisted.
+## Deployment
+
+### Vercel (recommended)
+
+1. Connect the repo to Vercel
+2. Add a Blob store in the Vercel dashboard and link it to the project
+3. Set environment variables: `GH_TOKEN` (GitHub PAT, no scopes), `CRON_SECRET` (any random string)
+4. Deploy
+5. Manually trigger the cron to seed initial data:
+   ```bash
+   curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://your-app.vercel.app/api/cron/fetch-repos
+   ```
+
+### GitHub Pages (fallback)
+
+The GitHub Actions workflow at `.github/workflows/deploy.yml` builds and deploys on push to `main`. This version fetches data client-side (no caching), so visitors need a GitHub token for full coverage of all 331 orgs.
+
+Enable at: **Settings → Pages → Source → GitHub Actions**
 
 ## Data Source
 
