@@ -2,7 +2,13 @@
 
 A leaderboard of public GitHub repositories from 331 US government organizations — Federal, Military, States, Cities, Counties, Special Districts, Tribal Nations, and Law Enforcement.
 
+**Live site:** https://gov-repo-scrape.vercel.app
+
 Built with Vite + React. Styled after the GOV.UK Design System.
+
+## How It Works
+
+A daily Vercel cron job fetches repo data from all 331 government GitHub organizations, paginates through all pages, and caches the result in Vercel Blob (~10,000 repos). When a visitor loads the site, the React app makes a single API call to `/api/repos` to get the cached data — no GitHub API calls from the browser, no token needed, instant load.
 
 ## Quick Start
 
@@ -11,30 +17,22 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173.
-
-## How It Works
-
-A daily Vercel cron job fetches repo data from all 331 government GitHub organizations, paginates through all pages, and caches the result in Vercel Blob. When a visitor loads the site, the React app makes a single API call to `/api/repos` to get the cached data — no GitHub API calls from the browser, no token needed.
+Open http://localhost:5173. Note: local dev requires `vercel dev` instead of `npm run dev` to access the API routes — or connect to the production `/api/repos` endpoint.
 
 ## Deployment
 
-### Vercel (recommended)
+### Vercel
 
 1. Connect the repo to Vercel
 2. Add a Blob store in the Vercel dashboard and link it to the project
-3. Set environment variables: `GH_TOKEN` (GitHub PAT, no scopes), `CRON_SECRET` (any random string)
+3. Set environment variables: `GH_TOKEN` (GitHub PAT, no scopes needed), `CRON_SECRET` (any random string)
 4. Deploy
 5. Manually trigger the cron to seed initial data:
    ```bash
    curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://your-app.vercel.app/api/cron/fetch-repos
    ```
 
-### GitHub Pages (fallback)
-
-The GitHub Actions workflow at `.github/workflows/deploy.yml` builds and deploys on push to `main`. This version fetches data client-side (no caching), so visitors need a GitHub token for full coverage of all 331 orgs.
-
-Enable at: **Settings → Pages → Source → GitHub Actions**
+The cron runs daily at 6am UTC. Data is edge-cached for 1 hour.
 
 ## Data Source
 
