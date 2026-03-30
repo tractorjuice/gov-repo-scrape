@@ -134,8 +134,10 @@ export default function App() {
       return new Date(b.updated) - new Date(a.updated);
     });
 
-  /** Running total of stars across all fetched repos (shown in stats bar). */
-  const totalStars = repos.reduce((s, r) => s + r.stars, 0);
+  /** Stats derived from the filtered list so they respond to filters. */
+  const totalStars = filtered.reduce((s, r) => s + r.stars, 0);
+  const countryCount = new Set(filtered.map((r) => r.country).filter(Boolean)).size;
+  const filteredLangs = new Set(filtered.map((r) => r.lang).filter(Boolean)).size;
 
   const isLoading = phase === "loading";
 
@@ -226,13 +228,13 @@ export default function App() {
         {/* Stats summary */}
         <div style={{ display: "flex", gap: 30, flexWrap: "wrap", marginBottom: 30, padding: "20px 0", borderTop: "1px solid #b1b4b6", borderBottom: "1px solid #b1b4b6" }}>
           {[
-            ["Repositories", repos.length.toLocaleString()],
+            ["Repositories", filtered.length.toLocaleString()],
             ["Total stars", fmtNum(totalStars)],
-            ["Countries", String(new Set(repos.map((r) => r.country).filter(Boolean)).size)],
-            ["Languages", String(langs.length - 1)],
+            ["Countries", String(countryCount)],
+            ["Languages", String(filteredLangs)],
             ["Last updated", lastUpdated ? fmtDate(lastUpdated) : "—"],
           ].map(([label, value]) => (
-            <div key={label}>
+            <div key={label} style={{ minWidth: 100 }}>
               <div style={{ fontSize: 36, fontWeight: 700, color: "#0b0c0c", lineHeight: 1 }}>{value}</div>
               <div style={{ fontSize: 16, color: "#505a5f", marginTop: 5 }}>{label}</div>
             </div>
