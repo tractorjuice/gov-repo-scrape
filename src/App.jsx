@@ -140,12 +140,13 @@ export default function App() {
    * Filtering happens in sequence: category → language → text search.
    * Limited to 300 rows in the render to keep the DOM manageable.
    */
-  /** Categories available given the current country filter. */
+  /** Categories available given the current country filter. Only shown when a country has sub-categories (e.g. US, UK). */
   const visibleCategories = filterCountry === "All"
     ? CATEGORIES
     : ["All", ...CATEGORIES.filter((c) =>
         c !== "All" && repos.some((r) => r.country === filterCountry && r.category === c)
       )];
+  const showCategoryFilter = visibleCategories.length > 2;
 
   const filtered = repos
     .filter((r) => filterCountry === "All" || r.country === filterCountry)
@@ -302,14 +303,16 @@ export default function App() {
                 ))}
               </select>
             </div>
-            <div>
-              <label style={{ display: "block", fontSize: 16, fontWeight: 700, marginBottom: 5 }}>Category</label>
-              <select className="govuk-select" value={filterCat} onChange={(e) => setFilterCat(e.target.value)}>
-                {visibleCategories.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
+            {showCategoryFilter && (
+              <div>
+                <label style={{ display: "block", fontSize: 16, fontWeight: 700, marginBottom: 5 }}>Category</label>
+                <select className="govuk-select" value={filterCat} onChange={(e) => setFilterCat(e.target.value)}>
+                  {visibleCategories.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div>
               <label style={{ display: "block", fontSize: 16, fontWeight: 700, marginBottom: 5 }}>Language</label>
               <select className="govuk-select" value={filterLang} onChange={(e) => setFilterLang(e.target.value)}>
