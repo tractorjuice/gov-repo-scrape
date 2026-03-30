@@ -20,18 +20,10 @@ import { ORGS, CATEGORIES, COUNTRIES } from "../lib/orgs.js";
 /**
  * Lookup: category → country. Used to backfill the `country` field for repos
  * fetched before the field was added to the cron output.
- * Includes legacy category names that differ from the current YAML source.
  */
-const CATEGORY_TO_COUNTRY = {
-  // Legacy names from the original hand-curated orgs.js
-  "U.S. Military & Intelligence": "United States",
-  "U.S. Cities": "United States",
-  "U.S. Counties": "United States",
-  "U.S. Special Districts": "United States",
-  "U.S. Law Enforcement": "United States",
-  // Current names from governments.yml
-  ...Object.fromEntries(ORGS.map((o) => [o.category, o.country])),
-};
+const CATEGORY_TO_COUNTRY = Object.fromEntries(
+  ORGS.map((o) => [o.category, o.country])
+);
 
 /**
  * GitHub's language colour palette, used to render the coloured dot next to
@@ -265,17 +257,17 @@ export default function App() {
         {/* Filters */}
         <div style={{ marginBottom: 20 }}>
           <h2 style={{ fontSize: 19, fontWeight: 700, marginBottom: 15 }}>Filter repositories</h2>
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ display: "block", fontSize: 16, fontWeight: 700, marginBottom: 5 }}>Search</label>
+            <input
+              className="govuk-input"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name or description"
+              style={{ width: "100%" }}
+            />
+          </div>
           <div style={{ display: "flex", gap: 15, flexWrap: "wrap", alignItems: "flex-end" }}>
-            <div style={{ flex: "1 1 200px" }}>
-              <label style={{ display: "block", fontSize: 16, fontWeight: 700, marginBottom: 5 }}>Search</label>
-              <input
-                className="govuk-input"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by name or description"
-                style={{ width: "100%" }}
-              />
-            </div>
             <div>
               <label style={{ display: "block", fontSize: 16, fontWeight: 700, marginBottom: 5 }}>Sort by</label>
               <select className="govuk-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
