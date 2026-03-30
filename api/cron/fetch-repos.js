@@ -72,19 +72,26 @@ export default async function handler(req, res) {
   const BATCH_SIZE = 20;
   const TIME_LIMIT_MS = 270_000; // stop fetching at 270s, leaving 30s to write blob
 
+  // Partition support: split ORGS across concurrent cron jobs.
+  const parts = parseInt(req.query.parts) || 1;
+  const part = parseInt(req.query.part) || 0;
+  const chunkSize = Math.ceil(ORGS.length / parts);
+  const partOrgs = ORGS.slice(part * chunkSize, (part + 1) * chunkSize);
+  const blobName = parts > 1 ? `repos-${part}.json` : "repos.json";
+
   const allRepos = [];
   let rateLimitedAt = null;
   let orgsProcessed = 0;
   let timedOut = false;
 
-  for (let i = 0; i < ORGS.length; i += BATCH_SIZE) {
+  for (let i = 0; i < partOrgs.length; i += BATCH_SIZE) {
     if (rateLimitedAt !== null) break;
     if (Date.now() - startTime > TIME_LIMIT_MS) {
       timedOut = true;
       break;
     }
 
-    const batch = ORGS.slice(i, i + BATCH_SIZE);
+    const batch = partOrgs.slice(i, i + BATCH_SIZE);
     const results = await Promise.allSettled(
       batch.map((org) => fetchOrgRepos(org, headers))
     );
@@ -100,7 +107,7 @@ export default async function handler(req, res) {
       }
     }
 
-    orgsProcessed = Math.min(i + batch.length, ORGS.length);
+    orgsProcessed = Math.min(i + batch.length, partOrgs.length);
   }
 
   const payload = {
@@ -111,7 +118,7 @@ export default async function handler(req, res) {
   };
 
   try {
-    await put("repos.json", JSON.stringify(payload), {
+    await put(blobName, JSON.stringify(payload), {
       access: "public",
       addRandomSuffix: false,
       allowOverwrite: true,
@@ -126,6 +133,9 @@ export default async function handler(req, res) {
   const duration = ((Date.now() - startTime) / 1000).toFixed(1);
   return res.status(200).json({
     orgs: orgsProcessed,
+    part,
+    parts,
+    partOrgs: partOrgs.length,
     totalOrgs: ORGS.length,
     repos: allRepos.length,
     rateLimitedAt,

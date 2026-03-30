@@ -2,7 +2,11 @@
   "framework": "vite",
   "crons": [
     {
-      "path": "/api/cron/fetch-repos",
+      "path": "/api/cron/fetch-repos?part=0&parts=2",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/fetch-repos?part=1&parts=2",
       "schedule": "0 6 * * *"
     }
   ]
