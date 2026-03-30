@@ -86,6 +86,7 @@ export default function App() {
   const [filterCountry, setFilterCountry] = useState("All");
   const [filterCat, setFilterCat] = useState("All");
   const [filterLang, setFilterLang] = useState("all");
+  const [filterTopic, setFilterTopic] = useState("all");
   const [search, setSearch] = useState("");
 
   useEffect(() => {
@@ -119,6 +120,21 @@ export default function App() {
     Array.from(new Set(repos.map((r) => r.lang).filter(Boolean))).sort()
   );
 
+  /** Top topics by frequency (capped at 50 to keep dropdown usable). */
+  const topicCounts = {};
+  for (const r of repos) {
+    for (const t of r.topics || []) {
+      topicCounts[t] = (topicCounts[t] || 0) + 1;
+    }
+  }
+  const topics = ["all"].concat(
+    Object.entries(topicCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 50)
+      .map(([t]) => t)
+      .sort()
+  );
+
   /**
    * Filtered and sorted repo list for the table.
    * Filtering happens in sequence: category → language → text search.
@@ -135,6 +151,7 @@ export default function App() {
     .filter((r) => filterCountry === "All" || r.country === filterCountry)
     .filter((r) => filterCat === "All" || r.category === filterCat)
     .filter((r) => filterLang === "all" || r.lang === filterLang)
+    .filter((r) => filterTopic === "all" || (r.topics && r.topics.includes(filterTopic)))
     .filter((r) => {
       if (!search.trim()) return true;
       const q = search.toLowerCase();
@@ -301,6 +318,14 @@ export default function App() {
                 ))}
               </select>
             </div>
+            <div>
+              <label style={{ display: "block", fontSize: 16, fontWeight: 700, marginBottom: 5 }}>Topic</label>
+              <select className="govuk-select" value={filterTopic} onChange={(e) => setFilterTopic(e.target.value)}>
+                {topics.map((t) => (
+                  <option key={t} value={t}>{t === "all" ? "All topics" : t}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
@@ -354,11 +379,18 @@ export default function App() {
                       {repo.desc}
                     </div>
                   )}
-                  {repo.license && (
-                    <span className="govuk-tag govuk-tag--grey" style={{ marginTop: 4, fontSize: 12 }}>
-                      {repo.license}
-                    </span>
-                  )}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                    {repo.license && (
+                      <span className="govuk-tag govuk-tag--grey" style={{ fontSize: 12 }}>
+                        {repo.license}
+                      </span>
+                    )}
+                    {(repo.topics || []).slice(0, 3).map((t) => (
+                      <span key={t} className="govuk-tag govuk-tag--blue" style={{ fontSize: 11, textTransform: "none", letterSpacing: 0 }}>
+                        {t}
+                      </span>
+                    ))}
+                  </div>
                 </td>
 
                 <td style={{ padding: "12px 10px 12px 0" }}>

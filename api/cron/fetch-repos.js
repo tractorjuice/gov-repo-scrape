@@ -42,6 +42,7 @@ async function fetchOrgRepos(org, headers) {
             lang: r.language || null,
             updated: r.pushed_at || null,
             license: r.license ? r.license.spdx_id : null,
+            topics: r.topics || [],
             org: org.name,
             category: org.category,
             country: org.country,
