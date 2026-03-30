@@ -110,6 +110,7 @@ export default async function handler(req, res) {
     await put("repos.json", JSON.stringify(payload), {
       access: "public",
       addRandomSuffix: false,
+      allowOverwrite: true,
     });
   } catch (err) {
     return res.status(500).json({
