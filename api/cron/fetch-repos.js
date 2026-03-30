@@ -18,8 +18,12 @@ async function fetchOrgRepos(org, headers) {
   while (url) {
     const res = await fetch(url, { headers });
 
-    if (res.status === 403 || res.status === 429) {
+    if (res.status === 429 || (res.status === 403 && res.headers.get("x-ratelimit-remaining") === "0")) {
       return { repos, rateLimited: true };
+    }
+    if (res.status === 403) {
+      // Org-level permission issue, not a global rate limit — skip this org.
+      return { repos, rateLimited: false };
     }
     if (!res.ok) return { repos, rateLimited: false };
 
@@ -65,7 +69,7 @@ export default async function handler(req, res) {
     Authorization: `Bearer ${process.env.GH_TOKEN}`,
   };
 
-  const BATCH_SIZE = 50;
+  const BATCH_SIZE = 20;
   const TIME_LIMIT_MS = 270_000; // stop fetching at 270s, leaving 30s to write blob
 
   const allRepos = [];
