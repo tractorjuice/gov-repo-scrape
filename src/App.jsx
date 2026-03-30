@@ -20,10 +20,18 @@ import { ORGS, CATEGORIES, COUNTRIES } from "../lib/orgs.js";
 /**
  * Lookup: category → country. Used to backfill the `country` field for repos
  * fetched before the field was added to the cron output.
+ * Includes legacy category names that differ from the current YAML source.
  */
-const CATEGORY_TO_COUNTRY = Object.fromEntries(
-  ORGS.map((o) => [o.category, o.country])
-);
+const CATEGORY_TO_COUNTRY = {
+  // Legacy names from the original hand-curated orgs.js
+  "U.S. Military & Intelligence": "United States",
+  "U.S. Cities": "United States",
+  "U.S. Counties": "United States",
+  "U.S. Special Districts": "United States",
+  "U.S. Law Enforcement": "United States",
+  // Current names from governments.yml
+  ...Object.fromEntries(ORGS.map((o) => [o.category, o.country])),
+};
 
 /**
  * GitHub's language colour palette, used to render the coloured dot next to
