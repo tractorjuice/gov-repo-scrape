@@ -15,7 +15,15 @@
  */
 
 import { useState, useEffect } from "react";
-import { CATEGORIES, COUNTRIES } from "../lib/orgs.js";
+import { ORGS, CATEGORIES, COUNTRIES } from "../lib/orgs.js";
+
+/**
+ * Lookup: category → country. Used to backfill the `country` field for repos
+ * fetched before the field was added to the cron output.
+ */
+const CATEGORY_TO_COUNTRY = Object.fromEntries(
+  ORGS.map((o) => [o.category, o.country])
+);
 
 /**
  * GitHub's language colour palette, used to render the coloured dot next to
@@ -87,7 +95,12 @@ export default function App() {
         return res.json();
       })
       .then((data) => {
-        setRepos(data.repos);
+        // Backfill `country` for repos fetched before the field existed.
+        const repos = data.repos.map((r) => ({
+          ...r,
+          country: r.country || CATEGORY_TO_COUNTRY[r.category] || r.category,
+        }));
+        setRepos(repos);
         setLastUpdated(data.lastUpdated);
         setPhase("done");
       })
