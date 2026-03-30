@@ -65,14 +65,22 @@ export default async function handler(req, res) {
     Authorization: `Bearer ${process.env.GH_TOKEN}`,
   };
 
+  const BATCH_SIZE = 50;
+  const TIME_LIMIT_MS = 270_000; // stop fetching at 270s, leaving 30s to write blob
+
   const allRepos = [];
   let rateLimitedAt = null;
   let orgsProcessed = 0;
+  let timedOut = false;
 
-  for (let i = 0; i < ORGS.length; i += 10) {
+  for (let i = 0; i < ORGS.length; i += BATCH_SIZE) {
     if (rateLimitedAt !== null) break;
+    if (Date.now() - startTime > TIME_LIMIT_MS) {
+      timedOut = true;
+      break;
+    }
 
-    const batch = ORGS.slice(i, i + 10);
+    const batch = ORGS.slice(i, i + BATCH_SIZE);
     const results = await Promise.allSettled(
       batch.map((org) => fetchOrgRepos(org, headers))
     );
@@ -95,6 +103,7 @@ export default async function handler(req, res) {
     lastUpdated: new Date().toISOString(),
     repos: allRepos,
     ...(rateLimitedAt !== null && { rateLimitedAt }),
+    ...(timedOut && { timedOut: true }),
   };
 
   try {
@@ -112,8 +121,10 @@ export default async function handler(req, res) {
   const duration = ((Date.now() - startTime) / 1000).toFixed(1);
   return res.status(200).json({
     orgs: orgsProcessed,
+    totalOrgs: ORGS.length,
     repos: allRepos.length,
     rateLimitedAt,
+    timedOut,
     duration: `${duration}s`,
   });
 }
