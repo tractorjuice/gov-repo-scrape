@@ -1,4 +1,4 @@
-import { put } from "@vercel/blob";
+import { put, head } from "@vercel/blob";
 import { ORGS } from "../../lib/orgs.js";
 
 export const config = {
@@ -72,19 +72,35 @@ export default async function handler(req, res) {
   const BATCH_SIZE = 20;
   const TIME_LIMIT_MS = 270_000; // stop fetching at 270s, leaving 30s to write blob
 
-  const allRepos = [];
+  // Resume support: read existing blob and skip orgs already fetched.
+  let existingRepos = [];
+  let existingOrgs = new Set();
+  try {
+    const blobInfo = await head("repos.json");
+    const blobRes = await fetch(blobInfo.url);
+    const existing = await blobRes.json();
+    if (Array.isArray(existing.repos)) {
+      existingRepos = existing.repos;
+      existingOrgs = new Set(existingRepos.map((r) => r.org));
+    }
+  } catch {
+    // No existing data — start fresh.
+  }
+
+  const remainingOrgs = ORGS.filter((o) => !existingOrgs.has(o.name));
+  const newRepos = [];
   let rateLimitedAt = null;
-  let orgsProcessed = 0;
+  let orgsProcessed = existingOrgs.size;
   let timedOut = false;
 
-  for (let i = 0; i < ORGS.length; i += BATCH_SIZE) {
+  for (let i = 0; i < remainingOrgs.length; i += BATCH_SIZE) {
     if (rateLimitedAt !== null) break;
     if (Date.now() - startTime > TIME_LIMIT_MS) {
       timedOut = true;
       break;
     }
 
-    const batch = ORGS.slice(i, i + BATCH_SIZE);
+    const batch = remainingOrgs.slice(i, i + BATCH_SIZE);
     const results = await Promise.allSettled(
       batch.map((org) => fetchOrgRepos(org, headers))
     );
@@ -92,7 +108,7 @@ export default async function handler(req, res) {
     for (let j = 0; j < results.length; j++) {
       if (results[j].status === "fulfilled") {
         const { repos, rateLimited } = results[j].value;
-        allRepos.push(...repos);
+        newRepos.push(...repos);
         if (rateLimited) {
           rateLimitedAt = i + j;
           break;
@@ -100,8 +116,10 @@ export default async function handler(req, res) {
       }
     }
 
-    orgsProcessed = Math.min(i + batch.length, ORGS.length);
+    orgsProcessed = existingOrgs.size + Math.min(i + batch.length, remainingOrgs.length);
   }
+
+  const allRepos = [...existingRepos, ...newRepos];
 
   const payload = {
     lastUpdated: new Date().toISOString(),
