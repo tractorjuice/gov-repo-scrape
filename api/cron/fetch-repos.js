@@ -1,5 +1,6 @@
 import { put } from "@vercel/blob";
 import { ORGS } from "../../lib/orgs.js";
+import { classify } from "../../lib/classify.js";
 
 export const config = {
   maxDuration: 300,
@@ -43,6 +44,7 @@ async function fetchOrgRepos(org, headers) {
             updated: r.pushed_at || null,
             license: r.license ? r.license.spdx_id : null,
             topics: r.topics || [],
+            ...classify({ name: r.name, desc: r.description || "", topics: r.topics || [] }),
             org: org.name,
             category: org.category,
             country: org.country,

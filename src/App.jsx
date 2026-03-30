@@ -15,7 +15,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { ORGS, CATEGORIES, COUNTRIES } from "../lib/orgs.js";
+import { ORGS, COUNTRIES } from "../lib/orgs.js";
 
 /**
  * Lookup: category → country. Used to backfill the `country` field for repos
@@ -84,7 +84,8 @@ export default function App() {
 
   const [sortBy, setSortBy] = useState("stars");
   const [filterCountry, setFilterCountry] = useState("All");
-  const [filterCat, setFilterCat] = useState("All");
+  const [filterDomain, setFilterDomain] = useState("all");
+  const [filterFn, setFilterFn] = useState("all");
   const [filterLang, setFilterLang] = useState("all");
   const [filterTopic, setFilterTopic] = useState("all");
   const [search, setSearch] = useState("");
@@ -135,22 +136,18 @@ export default function App() {
       .sort()
   );
 
-  /**
-   * Filtered and sorted repo list for the table.
-   * Filtering happens in sequence: category → language → text search.
-   * Limited to 300 rows in the render to keep the DOM manageable.
-   */
-  /** Categories available given the current country filter. Only shown when a country has sub-categories (e.g. US, UK). */
-  const visibleCategories = filterCountry === "All"
-    ? CATEGORIES
-    : ["All", ...CATEGORIES.filter((c) =>
-        c !== "All" && repos.some((r) => r.country === filterCountry && r.category === c)
-      )];
-  const showCategoryFilter = visibleCategories.length > 2;
+  /** Unique domains and functions seen across repos. */
+  const domains = ["all"].concat(
+    Array.from(new Set(repos.map((r) => r.domain).filter(Boolean))).sort()
+  );
+  const fns = ["all"].concat(
+    Array.from(new Set(repos.map((r) => r.fn).filter(Boolean))).sort()
+  );
 
   const filtered = repos
     .filter((r) => filterCountry === "All" || r.country === filterCountry)
-    .filter((r) => filterCat === "All" || r.category === filterCat)
+    .filter((r) => filterDomain === "all" || r.domain === filterDomain)
+    .filter((r) => filterFn === "all" || r.fn === filterFn)
     .filter((r) => filterLang === "all" || r.lang === filterLang)
     .filter((r) => filterTopic === "all" || (r.topics && r.topics.includes(filterTopic)))
     .filter((r) => {
@@ -303,16 +300,22 @@ export default function App() {
                 ))}
               </select>
             </div>
-            {showCategoryFilter && (
-              <div>
-                <label style={{ display: "block", fontSize: 16, fontWeight: 700, marginBottom: 5 }}>Category</label>
-                <select className="govuk-select" value={filterCat} onChange={(e) => setFilterCat(e.target.value)}>
-                  {visibleCategories.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
-            )}
+            <div>
+              <label style={{ display: "block", fontSize: 16, fontWeight: 700, marginBottom: 5 }}>Sector</label>
+              <select className="govuk-select" value={filterDomain} onChange={(e) => setFilterDomain(e.target.value)}>
+                {domains.map((d) => (
+                  <option key={d} value={d}>{d === "all" ? "All sectors" : d}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: 16, fontWeight: 700, marginBottom: 5 }}>Type</label>
+              <select className="govuk-select" value={filterFn} onChange={(e) => setFilterFn(e.target.value)}>
+                {fns.map((f) => (
+                  <option key={f} value={f}>{f === "all" ? "All types" : f}</option>
+                ))}
+              </select>
+            </div>
             <div>
               <label style={{ display: "block", fontSize: 16, fontWeight: 700, marginBottom: 5 }}>Language</label>
               <select className="govuk-select" value={filterLang} onChange={(e) => setFilterLang(e.target.value)}>
@@ -399,6 +402,9 @@ export default function App() {
                 <td style={{ padding: "12px 10px 12px 0" }}>
                   <div style={{ fontSize: 14, color: "#0b0c0c" }}>{repo.org}</div>
                   <div style={{ fontSize: 12, color: "#505a5f", marginTop: 2 }}>{repo.emoji} {repo.country || repo.category}</div>
+                  {repo.domain && repo.domain !== "Other" && (
+                    <div style={{ fontSize: 11, color: "#1d70b8", marginTop: 2 }}>{repo.domain}{repo.fn && repo.fn !== "Other" ? ` / ${repo.fn}` : ""}</div>
+                  )}
                 </td>
 
                 <td style={{ padding: "12px 10px 12px 0" }}>
