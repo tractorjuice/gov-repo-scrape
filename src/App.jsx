@@ -1,8 +1,8 @@
 /**
- * US Government Open Source Repository Leaderboard
+ * Government Open Source Repository Leaderboard
  *
- * A leaderboard of public GitHub repositories from US government
- * organisations, inspired by the UK Cross-Government OSS Leaderboard:
+ * A leaderboard of public GitHub repositories from government
+ * organisations worldwide, inspired by the UK Cross-Government OSS Leaderboard:
  * https://www.uk-x-gov-software-community.org.uk/xgov-opensource-repo-scraper/
  *
  * Organisation list sourced from GitHub's official government community registry:
@@ -10,12 +10,12 @@
  *
  * HOW IT WORKS:
  * - On load, fetches pre-cached repo data from /api/repos (Vercel serverless)
- * - The user can filter by category, language, sort order, and free-text search
+ * - The user can filter by country, category, language, sort order, and free-text search
  * - Forks and archived repos are excluded server-side
  */
 
 import { useState, useEffect } from "react";
-import { CATEGORIES } from "../lib/orgs.js";
+import { CATEGORIES, COUNTRIES } from "../lib/orgs.js";
 
 /**
  * GitHub's language colour palette, used to render the coloured dot next to
@@ -75,6 +75,7 @@ export default function App() {
   const [errorMsg, setErrorMsg] = useState("");
 
   const [sortBy, setSortBy] = useState("stars");
+  const [filterCountry, setFilterCountry] = useState("All");
   const [filterCat, setFilterCat] = useState("All");
   const [filterLang, setFilterLang] = useState("all");
   const [search, setSearch] = useState("");
@@ -110,7 +111,15 @@ export default function App() {
    * Filtering happens in sequence: category → language → text search.
    * Limited to 300 rows in the render to keep the DOM manageable.
    */
+  /** Categories available given the current country filter. */
+  const visibleCategories = filterCountry === "All"
+    ? CATEGORIES
+    : ["All", ...CATEGORIES.filter((c) =>
+        c !== "All" && repos.some((r) => r.country === filterCountry && r.category === c)
+      )];
+
   const filtered = repos
+    .filter((r) => filterCountry === "All" || r.country === filterCountry)
     .filter((r) => filterCat === "All" || r.category === filterCat)
     .filter((r) => filterLang === "all" || r.lang === filterLang)
     .filter((r) => {
@@ -138,7 +147,7 @@ export default function App() {
     <header style={{ background: "#0b0c0c", borderBottom: "10px solid #1d70b8" }}>
       <div style={{ maxWidth: 960, margin: "0 auto", padding: "10px 15px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <a href="/" style={{ color: "#fff", textDecoration: "none", fontWeight: 700, fontSize: 24 }}>
-          <span style={{ fontWeight: 700 }}>US.GOV</span>
+          <span style={{ fontWeight: 700 }}>GOV</span>
           <span style={{ fontWeight: 400, marginLeft: 5, fontSize: 16, color: "#a0a0a0" }}>Open Source</span>
         </a>
         <span style={{ color: "#fff", fontSize: 14 }}>
@@ -158,7 +167,8 @@ export default function App() {
         <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 10, color: "#0b0c0c" }}>About this service</h2>
         <p style={{ fontSize: 14, color: "#505a5f", lineHeight: 1.6, marginBottom: 15 }}>
           Organisation list sourced from{" "}
-          <a href="https://government.github.com/community/" target="_blank" rel="noreferrer">github/government.github.com</a>.
+          <a href="https://government.github.com/community/" target="_blank" rel="noreferrer">github/government.github.com</a>{" "}
+          covering 67 countries.
           {" "}Inspired by the{" "}
           <a href="https://www.uk-x-gov-software-community.org.uk/xgov-opensource-repo-scraper/" target="_blank" rel="noreferrer">UK Cross-Gov OSS Leaderboard</a>.
         </p>
@@ -210,7 +220,7 @@ export default function App() {
           Open Source Repository Leaderboard
         </h1>
         <p style={{ fontSize: 19, color: "#505a5f", marginBottom: 30 }}>
-          Public repositories from US government organisations on GitHub.
+          Public repositories from government organisations worldwide on GitHub.
         </p>
 
         {/* Stats summary */}
@@ -218,6 +228,7 @@ export default function App() {
           {[
             ["Repositories", repos.length.toLocaleString()],
             ["Total stars", fmtNum(totalStars)],
+            ["Countries", String(new Set(repos.map((r) => r.country).filter(Boolean)).size)],
             ["Languages", String(langs.length - 1)],
             ["Last updated", lastUpdated ? fmtDate(lastUpdated) : "—"],
           ].map(([label, value]) => (
@@ -252,9 +263,17 @@ export default function App() {
               </select>
             </div>
             <div>
+              <label style={{ display: "block", fontSize: 16, fontWeight: 700, marginBottom: 5 }}>Country</label>
+              <select className="govuk-select" value={filterCountry} onChange={(e) => { setFilterCountry(e.target.value); setFilterCat("All"); }}>
+                {COUNTRIES.map((c) => (
+                  <option key={c} value={c}>{c === "All" ? "All countries" : c}</option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label style={{ display: "block", fontSize: 16, fontWeight: 700, marginBottom: 5 }}>Category</label>
               <select className="govuk-select" value={filterCat} onChange={(e) => setFilterCat(e.target.value)}>
-                {CATEGORIES.map((c) => (
+                {visibleCategories.map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
@@ -329,7 +348,7 @@ export default function App() {
 
                 <td style={{ padding: "12px 10px 12px 0" }}>
                   <div style={{ fontSize: 14, color: "#0b0c0c" }}>{repo.org}</div>
-                  <div style={{ fontSize: 12, color: "#505a5f", marginTop: 2 }}>{repo.category}</div>
+                  <div style={{ fontSize: 12, color: "#505a5f", marginTop: 2 }}>{repo.emoji} {repo.country || repo.category}</div>
                 </td>
 
                 <td style={{ padding: "12px 10px 12px 0" }}>

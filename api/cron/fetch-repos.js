@@ -40,6 +40,7 @@ async function fetchOrgRepos(org, headers) {
             license: r.license ? r.license.spdx_id : null,
             org: org.name,
             category: org.category,
+            country: org.country,
             emoji: org.emoji,
           });
         }
