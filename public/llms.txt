@@ -1,0 +1,29 @@
+# Government Open Source Repository Leaderboard
+
+> A leaderboard of public GitHub repositories from ~977 government organisations across 67 countries. The site aggregates repo data (stars, forks, issues, language, topics, licence, last-updated) from every known government GitHub organisation and displays a searchable, filterable table ranked by popularity. Data is refreshed daily.
+
+The service is a single-page Vite + React app styled after the GOV.UK Design System. A Vercel cron job fetches all repos from the GitHub API once per day, caches the result in Vercel Blob, and the browser loads the cached JSON through a single `/api/repos` endpoint. Forks and archived repositories are excluded. The UI filters by country, sector, type, language, topic, and free-text search, and sorts by stars, forks, open issues, or last-updated date. Only the top 300 filtered results are rendered to keep the DOM small.
+
+## Site
+
+- [Live leaderboard](https://gov-repo-scrape.vercel.app): The main page — search, filter, and browse ~10,000 public government repositories.
+
+## Data
+
+- [/api/repos](https://gov-repo-scrape.vercel.app/api/repos): JSON endpoint returning `{ lastUpdated, repos: [...] }`. Each repo entry contains `id`, `name`, `url`, `desc`, `org`, `lang`, `stars`, `forks`, `issues`, `updated`, `topics`, `license`, `country`, `category`, `domain`, `fn`, and `emoji`. Edge-cached for 1 hour, stale-while-revalidate 24 hours. Total payload ~3 MB.
+
+## Source
+
+- [GitHub repository](https://github.com/tractorjuice/gov-repo-scrape): Full source code (Vite + React frontend, Vercel serverless functions, daily cron).
+- [README](https://github.com/tractorjuice/gov-repo-scrape/blob/main/README.md): Setup, deployment, and architecture overview.
+- [Organisation list](https://github.com/tractorjuice/gov-repo-scrape/blob/main/lib/orgs.js): The ~977 government GitHub org slugs with country, category, and emoji, generated from `github/government.github.com`.
+
+## Attribution
+
+- [github/government.github.com](https://government.github.com/community/): Upstream source of the government organisation list (`_data/governments.yml`).
+- [UK Cross-Gov OSS Leaderboard](https://www.uk-x-gov-software-community.org.uk/xgov-opensource-repo-scraper/): Original inspiration for the project.
+
+## Optional
+
+- [Vercel platform](https://vercel.com): Hosting platform (static frontend + serverless API + cron + Blob storage).
+- [GOV.UK Design System](https://design-system.service.gov.uk/): Visual design language the UI is based on.
