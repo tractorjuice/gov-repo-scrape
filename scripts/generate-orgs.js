@@ -10,6 +10,7 @@ import { writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
+import { MANUAL_ORGS } from "../lib/orgs-manual.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT = resolve(__dirname, "../lib/orgs.js");
@@ -120,22 +121,41 @@ async function main() {
   const text = await res.text();
   const data = yaml.load(text);
 
-  const sections = Object.keys(data).sort();
+  // Merge upstream YAML sections with manual overlay entries.
+  // Upstream wins on (section, name) collision so the overlay never
+  // shadows an org that governments.yml already ships.
+  const manualBySection = {};
+  for (const m of MANUAL_ORGS) {
+    (manualBySection[m.category] ||= []).push(m.name);
+  }
+
+  const allSections = new Set([
+    ...Object.keys(data),
+    ...Object.keys(manualBySection),
+  ]);
+  const sections = [...allSections].sort();
   const orgs = [];
 
   for (const section of sections) {
-    const slugs = data[section];
-    if (!Array.isArray(slugs)) continue;
+    const upstream = Array.isArray(data[section]) ? data[section] : [];
+    const manual = manualBySection[section] || [];
+    const seen = new Set(upstream);
+    const merged = [...upstream, ...manual.filter((n) => !seen.has(n))];
+    if (merged.length === 0) continue;
     const emoji = EMOJI[section] || "\u{1F3DB}\u{FE0F}";
     const country = COUNTRY_OF[section] || section;
 
-    for (const slug of slugs) {
+    for (const slug of merged) {
       orgs.push({ name: slug, category: section, country, emoji });
     }
   }
 
-  // Build the CATEGORIES list: "All" + sorted unique section names.
-  const categories = ["All", ...sections.filter((s) => Array.isArray(data[s]))];
+  // Build the CATEGORIES list: "All" + sorted unique section names that
+  // actually produced orgs (either via upstream or overlay).
+  const populatedSections = [
+    ...new Set(orgs.map((o) => o.category)),
+  ].sort();
+  const categories = ["All", ...populatedSections];
 
   // Build COUNTRIES list: "All" + sorted unique country names.
   const countries = [
